@@ -224,7 +224,7 @@ let soundman = new function(){
 	// Create pinned menu
 	browser.menus.create({
 		id: "SoundmanPin",
-		title: "Enter Soundman (pin)",
+		title: "Pin to Soundman",
 		contexts: ["tab"],
 		icons: {"16":"Soundman16.png"},
 	});

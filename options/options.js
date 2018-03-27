@@ -12,7 +12,6 @@ function saveOptions(e) {
 				opt[op] = undefined;
 			}
 		}
-		
 		var diff = ((opt.changeTabKey != opt.pauseKey)
 									&& (opt.changeTabKey != opt.muteKey)
 									&& (opt.muteKey != opt.pauseKey));
@@ -29,10 +28,20 @@ function saveOptions(e) {
 				}
 			});
 			notifyBackground(opt);
+			feedback(false,"OK")
 		}else{
-			document.getElementById("feedback").textContent = "Invalid Key configuration" + (diff ? "" : "Two action have same modifier")
+			feedback(true,(diff ? "" : "Two action have same modifier"));
 		}
   e.preventDefault();
+}
+
+function feedback(err,str){
+	var elem = document.getElementById("feedback");
+	var color = err ? "red":"green";
+	var fdb = err ? "Invalid key configuration " + str : "OK";
+	elem.textContent = fdb;
+	elem.style.color = color;
+	return 0
 }
 
 function notifyBackground(output){
