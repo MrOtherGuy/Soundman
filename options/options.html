@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+
+<body>
+	<div id="description">
+	<h3>Control media playback</h3>
+	<p>Soundman will create a new context menu item for each tab that plays audio. You can see the tab title and control that tab directly from that menu.</p>
+	<p>Soundman requires very broad permissions to all tabs and websites because it sends a script to webpage when you try to pause/play media in that tab.</p>
+	<h3>Instructions</h3>
+	<p>Use configurable click modifiers to take different actions when you click the context menu entry. Defaults actions are:</p>
+	<ul>
+		<li><b>No modifier:</b> Switch to the tab</li>
+		<li><b>Shift:</b> Mute/Unmute the tab</li>
+		<li><b>Ctrl:</b> Try to play/pause the playback</li>
+	</ul>
+	<p>When you use Soundman context menus to mute or pause playback the tab will stay in context menu and you can later use it to resume playback.
+	<p>You can pin a tab to Soundman by using the relevant menu entry when you right-click a tab. This way you can pin a tab to context menu even if that tab plays no audio.</p>
+	<p>When you switch to tab using Soundman you can switch back to the original tab using the same menu again.</p>
+	<p>Menuitems are removed when:</p>
+	<ul>
+		<li>The tab is closed</li>
+		<li>You stop the playback from within the tab (if the tab is not pinned)</li>
+		<li>Playback stops on it's own (if the tab is not pinned)</li>
+		<li>You remove the tab from Soundman via tab context menu</li>
+	</ul>
+	<h3>Known issues</h3>
+	<ul>
+	<li>Playback control (play/pause) is website dependent and may not work everywhere and might behave unexpectedly when there are multiple audio sources. Youtube, Soundcloud, Mixcloud, Netflix work at the time of writing.</li>
+	<li>Soundman tab states don't persist between Firefox restarts</li>
+	</ul>
+	</div>
+	<h3>Options</h3>
+	<span>Select menu click modifier for different actions:</span>
+	<span id="feedback" style="color:red"></span>
+	<div>
+		<label>Play/Pause playback</label>
+		<select id="playbackSelection">
+			<option value="Shift">Shift</option>
+			<option value="Ctrl" selected="selected">Ctrl</option>
+			<option value="sb_undefined">No modifier</option>
+		</select>
+	</div>
+	<div>
+		<label>Switch to tab</label>
+		<select id="switchSelection">
+			<option value="Shift">Shift</option>
+			<option value="Ctrl">Ctrl</option>
+			<option value="sb_undefined" selected="selected">No modifier</option>
+		</select>
+	</div>
+	<div>
+		<label>Mute/Unmute tab</label>
+		<select id="muteSelection">
+			<option value="Shift" selected="selected">Shift</option>
+			<option value="Ctrl">Ctrl</option>
+			<option value="sb_undefined">No modifier</option>
+		</select>
+	</div>
+   <button id="saveButton" type="submit">Save</button>
+	 <script src="options.js"></script>
+</body>
+
+</html>
