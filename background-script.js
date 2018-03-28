@@ -7,9 +7,7 @@ function setDefault() {
   var gettingItem = browser.storage.local.get(["menuOptions"]);
   gettingItem.then((res) => {
 		var options = res.menuOptions;
-		console.log(options);
 		var names = options ? Object.getOwnPropertyNames(options) : [];
-		console.log(names);
 		if (!(names.includes("changeTabKey")
 					&& names.includes("muteKey")
 					&& names.includes("pauseKey"))){
@@ -28,9 +26,9 @@ let soundman = new function(){
 	// getTabs is for debug purposes
 	this.getTabs = () => { return SBtabs.tabs };
 	// Current options
-	var options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute"};
+	let options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute"};
 	// Manager to store tab states
-	var SBtabs = new function(){
+	let SBtabs = new function(){
 		this.tabs = {};
 		this.prevTab = new function(){
 			this.clear = () => {
@@ -68,8 +66,8 @@ let soundman = new function(){
 			//This can happen on first install, but options is initialized to correct values at that time anyway
 			return
 		}
-		var valids = [undefined,"Ctrl","Shift"];
-		var diff = ((opt.changeTabKey != opt.pauseKey)
+		let valids = [undefined,"Ctrl","Shift"];
+		let diff = ((opt.changeTabKey != opt.pauseKey)
 									&& (opt.changeTabKey != opt.muteKey)
 									&& (opt.muteKey != opt.pauseKey));
 		
@@ -106,7 +104,7 @@ let soundman = new function(){
 	// Handle changes to tabs
 	function handleUpdated(tabId,changeInfo){
 		
-		var tab = SBtabs.get(tabId) || SBtabs.put(tabId);
+		let tab = SBtabs.get(tabId) || SBtabs.put(tabId);
 		
 		// Event runs twice on muted state changes...
 		
@@ -145,7 +143,7 @@ let soundman = new function(){
 	}
 	// Pin tab
 	let handlePinned = (tabId) => {
-		var tab = SBtabs.get(tabId);
+		let tab = SBtabs.get(tabId);
 		if(tab && tab.pinned){
 			unpin(tabId);
 		}else{
@@ -157,7 +155,7 @@ let soundman = new function(){
 	}
 	// Unpin tab
 	let unpin = (tabId) => {
-		var tab = SBtabs.get(tabId);
+		let tab = SBtabs.get(tabId);
 		SBtabs.set(tab,"pinned",false);
 		if(!tab.muted && !tab.paused && !tab.audible){
 			handleRemoved(tabId);
@@ -168,7 +166,8 @@ let soundman = new function(){
 	let selectMenuUpdate = (info,tab) => {
 		// Handle tab context menu here
 		if(info.contexts[0] === "tab"){
-			if(SBtabs.get(tab.id)){
+			let SBtab = SBtabs.get(tab.id);
+			if(SBtab){
 				browser.menus.update("SoundmanDelete",{enabled:true});
 				SBtab.pinned && browser.menus.update("SoundmanPin",{title:"Unpin from Soundman"});
 				browser.menus.refresh();
@@ -183,20 +182,20 @@ let soundman = new function(){
 	// Update content context menu
 	let updateMenu = () => {
 		
-		var promises = [];
-		for (var id in SBtabs.tabs){
+		let promises = [];
+		for (let id in SBtabs.tabs){
 			promises.push(browser.tabs.get(+id));
 		}
 		if (promises.length === 0){
 			return 0
 		}
 		Promise.all(promises).then((tabs) => {
-			for(tab of tabs){
+			for(let tab of tabs){
 				var title;
 				if(SBtabs.prevTab.fromTab === tab.id){
 					title = "🔁 " + SBtabs.prevTab.title;
 				}else{
-					var SBtab = SBtabs.get(tab.id);
+					let SBtab = SBtabs.get(tab.id);
 					title = ["","📌"][+SBtab.pinned] + ["🔊","🔇"][+SBtab.muted] + ["▶️ ","⏸ "][+SBtab.paused] + tab.title;
 				}
 				browser.menus.update("Soundman-"+tab.id,{
@@ -213,10 +212,10 @@ let soundman = new function(){
 	}
 	// Playback control
 	let playback = (id) => {
-		var tab = SBtabs.get(id);
-		var state = tab.paused;
+		let tab = SBtabs.get(id);
+		let state = tab.paused;
 		// Select the function
-		var func = state ? ".play();": ".pause();";
+		let func = state ? ".play();": ".pause();";
 		// Construct and send this script to content window
 		// Page specific functionality is sadness but necessary
 		browser.tabs.executeScript(id,{
@@ -238,7 +237,7 @@ let soundman = new function(){
 		// Feedback from tab content
 		if(sender.envType === "content_child"){
 		
-			var tab = SBtabs.get(sender.tab.id);
+			let tab = SBtabs.get(sender.tab.id);
 			if (tab.paused != request.state){
 				SBtabs.set(tab,"paused",!!(request.elem^tab.paused));
 			}
@@ -271,7 +270,7 @@ let soundman = new function(){
 	});
 	// Select which tabId should switch to
 	let getSwitchTabId = (newId,curId,curTitle) => {
-		var retval;
+		let retval;
 		if (newId != curId){
 			retval = newId;
 			SBtabs.prevTab.id = curId;
@@ -294,8 +293,8 @@ let soundman = new function(){
 		}else if(menus.menuItemId === "SoundmanPin"){
 			handlePinned(tab.id);
 		}else{
-			var tabId = +(menus.menuItemId.split("-")[1]);
-			var method = getMenuAction(menus.modifiers);
+			let tabId = +(menus.menuItemId.split("-")[1]);
+			let method = getMenuAction(menus.modifiers);
 			switch (method){
 				case "playback":
 					playback(tabId);
