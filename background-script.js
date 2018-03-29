@@ -181,7 +181,7 @@ let soundman = new function(){
 	}
 	// Update content context menu
 	let updateMenu = () => {
-		
+		// Loop through all id's in SBtabs and get the corresponding tab object
 		let promises = [];
 		for (let id in SBtabs.tabs){
 			promises.push(browser.tabs.get(+id));
@@ -191,7 +191,7 @@ let soundman = new function(){
 		}
 		Promise.all(promises).then((tabs) => {
 			for(let tab of tabs){
-				var title;
+				let title;
 				if(SBtabs.prevTab.fromTab === tab.id){
 					title = "🔁 " + SBtabs.prevTab.title;
 				}else{
@@ -204,7 +204,7 @@ let soundman = new function(){
 				});
 			}
 			
-		}).then(()=>{browser.menus.refresh();});
+		}).then(() => { browser.menus.refresh(); });
 	}
 	// map modifier keys to actions
 	let getMenuAction = (mods) => {
@@ -219,7 +219,21 @@ let soundman = new function(){
 		// Construct and send this script to content window
 		// Page specific functionality is sadness but necessary
 		browser.tabs.executeScript(id,{
-			code: "(function(){var state="+!state+";var media=document.getElementsByTagName('video')[0]||document.getElementsByTagName('audio')[0]||null;if(media!=null){media && media"+func+"}else{media=document.getElementsByClassName('playControl')[0]||null;media&&media.tagName==='BUTTON'&&media.click()}browser.runtime.sendMessage({elem:!!media,state:state})})()",
+			code: 
+				`(function(){
+					var state = ${!state};
+					var media =	 document.getElementsByTagName("video")[0]
+										|| document.getElementsByTagName("audio")[0]
+										|| null;
+					if(media != null){
+						media && media${func};
+					}else{
+						media = document.getElementsByClassName("playControl")[0]
+									|| null;
+						media && media.tagName === "BUTTON" && media.click();
+					}
+					browser.runtime.sendMessage({ elem:!!media,state:state })
+				})()`,
 			allFrames:true
 		});
 		return 0
