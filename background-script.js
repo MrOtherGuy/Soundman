@@ -328,7 +328,7 @@ let soundman = new function(){
 				case "switch":
 					tabId = getSwitchTabId(tabId,tab.id,tab.title);
 					if (tabId){
-						browser.tabs.update(tabId,{active: true });
+						browser.tabs.update(tabId,{ active: true });
 						// activate listener if we used menu to change tab
 						// it clears prevTab info on changing tab and deactivates itself
 						browser.tabs.onActivated.addListener(handleActiveChanged);
