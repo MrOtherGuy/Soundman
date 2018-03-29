@@ -47,10 +47,10 @@ let soundman = new function(){
 			}
 		};
 		this.get = (id) => { return this.tabs[id] };
-		this.put = (id) => {
+		this.put = (id,audible) => {
 			this.tabs[id] = {
 				muted:false,
-				audible:true,
+				audible:!!audible,
 				pinned:false,
 				paused:false
 				};
@@ -104,10 +104,15 @@ let soundman = new function(){
 	// Handle changes to tabs
 	function handleUpdated(tabId,changeInfo){
 		
-		let tab = SBtabs.get(tabId) || SBtabs.put(tabId);
+		let tab = SBtabs.get(tabId) || SBtabs.put(tabId,true);
 		
-		// Event runs twice on muted state changes...
-		
+		/*
+		* Event runs twice on muted state changes...
+		* First you get changeInfo.muted == false
+		* Then immediately afterwards changeInfo.audible == true
+		* So need to sync state on muted change otherwise the tab id becomes
+		* unregistered because tab is no longer paused or muted or audible
+		*/
 		SBtabs.set(tab,"audible",changeInfo.audible);
 		if(tab.audible && tab.paused){
 			SBtabs.set(tab,"paused",false);
@@ -283,14 +288,18 @@ let soundman = new function(){
 		icons: {"16":"Soundman16.png"},
 	});
 	// Select which tabId should switch to
+	// newId == id of the tab that registered the menuitem
+	// curId == id of currently selected tab
 	let getSwitchTabId = (newId,curId,curTitle) => {
 		let retval;
+		// Store the previous tab info if we changed to a tab using Soundman
 		if (newId != curId){
 			retval = newId;
 			SBtabs.prevTab.id = curId;
 			SBtabs.prevTab.title = curTitle;
 			SBtabs.prevTab.fromTab = newId;
 		}else{
+			// return null in case we are in the tab of this menu already
 			retval = null;
 		}
 		return retval
@@ -305,7 +314,7 @@ let soundman = new function(){
 		if(menus.menuItemId === "SoundmanDelete"){
 			handleRemoved(tab.id);
 		}else if(menus.menuItemId === "SoundmanPin"){
-			handlePinned(tab.id);
+			handlePinned(tab.id,tab.audible);
 		}else{
 			let tabId = +(menus.menuItemId.split("-")[1]);
 			let method = getMenuAction(menus.modifiers);
@@ -320,6 +329,8 @@ let soundman = new function(){
 					tabId = getSwitchTabId(tabId,tab.id,tab.title);
 					if (tabId){
 						browser.tabs.update(tabId,{active: true });
+						// activate listener if we used menu to change tab
+						// it clears prevTab info on changing tab and deactivates itself
 						browser.tabs.onActivated.addListener(handleActiveChanged);
 					}else{
 						browser.tabs.update(SBtabs.prevTab.id,{active:true});
