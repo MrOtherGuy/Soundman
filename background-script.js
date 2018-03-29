@@ -40,7 +40,7 @@ let soundman = new function(){
 			this.id = null;
 			this.fromTab = null
 		};
-		//this.isPausing = (id) => {return this.get(id).pausing};
+		
 		this.set = (tab, property, value) => {
 			if(value === true || value === false){
 				tab[property] = value
@@ -123,7 +123,6 @@ let soundman = new function(){
 			SBtabs.set(tab,"audible",!tab.muted);
 		}
 		if(!tab.muted && !tab.paused && !tab.audible && !tab.pinned){
-			//console.log(changeInfo);
 			handleRemoved(tabId);
 		}
 	}
