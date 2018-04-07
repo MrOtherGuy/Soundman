@@ -41,20 +41,23 @@ let soundman = new function(){
 			this.fromTab = null
 		};
 		
-		this.set = (tab, property, value) => {
-			if(value === true || value === false){
-				tab[property] = value
+		this.set = (id, property, value) => {
+			let tab = this.get(id);
+			if(tab && (value === true || value === false)){
+				tab[property] = value;
 			}
 		};
-		this.get = (id) => { return this.tabs[id] };
-		this.put = (id,audible) => {
-			this.tabs[id] = {
-				muted:false,
-				audible:!!audible,
-				pinned:false,
-				paused:false
-				};
-			createMenu(id);
+		this.get = (id) => { return (this.tabs[id] || null) };
+		this.create = (id,audible) => {
+			if (this.get(id) === null){
+				this.tabs[id] = {
+					muted:false,
+					audible:!!audible,
+					pinned:false,
+					paused:false
+					};
+				createMenu(id);
+			}
 			return this.get(id)
 		};
 		this.remove = (id) => { delete this.tabs[id] };
@@ -104,7 +107,7 @@ let soundman = new function(){
 	// Handle changes to tabs
 	function handleUpdated(tabId,changeInfo){
 		
-		let tab = SBtabs.get(tabId) || SBtabs.put(tabId,true);
+		let tab = SBtabs.get(tabId) || SBtabs.create(tabId,true);
 		
 		/*
 		* Event runs twice on muted state changes...
@@ -113,14 +116,14 @@ let soundman = new function(){
 		* So need to sync state on muted change otherwise the tab id becomes
 		* unregistered because tab is no longer paused or muted or audible
 		*/
-		SBtabs.set(tab,"audible",changeInfo.audible);
+		SBtabs.set(tabId,"audible",changeInfo.audible);
 		if(tab.audible && tab.paused){
-			SBtabs.set(tab,"paused",false);
+			SBtabs.set(tabId,"paused",false);
 		}
 		if (changeInfo.mutedInfo){
-			SBtabs.set(tab,"muted",changeInfo.mutedInfo.muted);
+			SBtabs.set(tabId,"muted",changeInfo.mutedInfo.muted);
 			// Also sync audible state now
-			SBtabs.set(tab,"audible",!tab.muted);
+			SBtabs.set(tabId,"audible",!tab.muted);
 		}
 		if(!tab.muted && !tab.paused && !tab.audible && !tab.pinned){
 			handleRemoved(tabId);
@@ -152,15 +155,15 @@ let soundman = new function(){
 			unpin(tabId);
 		}else{
 			if(!tab){
-				tab = SBtabs.put(tabId);
+				SBtabs.create(tabId);
 			}
-			SBtabs.set(tab,"pinned",true);
+			SBtabs.set(tabId,"pinned",true);
 		}
 	}
 	// Unpin tab
 	let unpin = (tabId) => {
 		let tab = SBtabs.get(tabId);
-		SBtabs.set(tab,"pinned",false);
+		SBtabs.set(tabId,"pinned",false);
 		if(!tab.muted && !tab.paused && !tab.audible){
 			handleRemoved(tabId);
 		}
@@ -217,6 +220,9 @@ let soundman = new function(){
 	// Playback control
 	let playback = (id) => {
 		let tab = SBtabs.get(id);
+		if(!tab){
+			return 0
+		}
 		let state = tab.paused;
 		// Select the function
 		let func = state ? ".play();": ".pause();";
@@ -226,15 +232,35 @@ let soundman = new function(){
 			code: 
 				`(function(){
 					var state = ${!state};
-					var media =	 document.getElementsByTagName("video")[0]
+					var host = document.location.host.toString();
+					var specialCases = ["soundcloud.com"];
+					var service = "SB_default";
+					for (var test of specialCases){
+						if (host.indexOf(test) != -1){
+							service = test;
+							break;
+						}
+					}
+					var media;
+					switch(service){
+						case "soundcloud.com":
+							if(host == "w.soundcloud.com"){
+								window.postMessage(JSON.stringify({method:"toggle"}),"https://"+host);
+								media = true;
+							}else{
+								media = document.getElementsByClassName("playControl")[0]
+									|| null;
+								media && media.tagName === "BUTTON" && media.click();
+							}
+							break;
+						case "SB_default":
+							media = document.getElementsByTagName("video")[0]
 										|| document.getElementsByTagName("audio")[0]
 										|| null;
-					if(media != null){
-						media && media${func};
-					}else{
-						media = document.getElementsByClassName("playControl")[0]
-									|| null;
-						media && media.tagName === "BUTTON" && media.click();
+							media && media${func}
+							break;
+						default:
+							return 0;
 					}
 					browser.runtime.sendMessage({ elem:!!media,state:state })
 				})()`,
@@ -256,8 +282,8 @@ let soundman = new function(){
 		if(sender.envType === "content_child"){
 		
 			let tab = SBtabs.get(sender.tab.id);
-			if (tab.paused != request.state){
-				SBtabs.set(tab,"paused",!!(request.elem^tab.paused));
+			if (tab && (tab.paused != request.state)){
+				SBtabs.set(sender.tab.id,"paused",!!(request.elem^tab.paused));
 			}
 		}else{
 			// update options based on message from options document
@@ -269,6 +295,8 @@ let soundman = new function(){
 	browser.storage.local.get(["menuOptions"]).then((options) => {setOptions(options.menuOptions)});
 	// Listen to tab changes
 	browser.tabs.onUpdated.addListener(determineAction);
+	// Firefox 61 supports filtering onUpdated	//browser.tabs.onUpdated.addListener(determineAction,{properties:["audible","mutedInfo"]});
+	
 	// Remove the tab from soundman if the tab was closed
 	browser.tabs.onRemoved.addListener(handleRemoved);
 	// Create delete menu
