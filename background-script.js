@@ -1,13 +1,10 @@
 "use strict;"
-
-browser.runtime.onInstalled.addListener(setDefault);
 // Set default options
-function setDefault() {
-
-  var gettingItem = browser.storage.local.get(["menuOptions"]);
+browser.runtime.onInstalled.addListener( () => {
+  let gettingItem = browser.storage.local.get(["menuOptions"]);
   gettingItem.then((res) => {
-		var options = res.menuOptions;
-		var names = options ? Object.getOwnPropertyNames(options) : [];
+		let options = res.menuOptions;
+		let names = options ? Object.getOwnPropertyNames(options) : [];
 		if (!(names.includes("changeTabKey")
 					&& names.includes("muteKey")
 					&& names.includes("pauseKey"))){
@@ -20,15 +17,15 @@ function setDefault() {
 			});			
 		}
   });
-}
+});
 
-let soundman = new function(){
+const soundman = new function(){
 	// getTabs is for debug purposes
 	this.getTabs = () => { return SBtabs.tabs };
 	// Current options
-	let options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute"};
+	const options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute"};
 	// Manager to store tab states
-	let SBtabs = new function(){
+	const SBtabs = new function(){
 		this.tabs = {};
 		this.prevTab = new function(){
 			this.clear = () => {
@@ -47,7 +44,9 @@ let soundman = new function(){
 				tab[property] = value;
 			}
 		};
+		
 		this.get = (id) => { return (this.tabs[id] || null) };
+		
 		this.create = (id,audible) => {
 			if (this.get(id) === null){
 				this.tabs[id] = {
@@ -60,11 +59,12 @@ let soundman = new function(){
 			}
 			return this.get(id)
 		};
+		
 		this.remove = (id) => { delete this.tabs[id] };
-
 	};
+	
 	// Validate and map click modifiers
-	function setOptions(opt){
+	const setOptions = (opt) => {
 		if(!opt){
 			//This can happen on first install, but options is initialized to correct values at that time anyway
 			return
@@ -85,17 +85,18 @@ let soundman = new function(){
 		}else{
 			console.log("invalid key configuration")
 		}
-	}
+	};
 	
 	// This is only listening when we change tab from within context menu
 	// If the user changes a tab himself we want to clear the previous tab store
-	function handleActiveChanged(tabInfo){
+	const handleActiveChanged = (tabInfo) => {
 		SBtabs.prevTab.clear();
 		browser.tabs.onActivated.removeListener(handleActiveChanged);
-	}
+	};
+	
 	// Filter out uninteresting changes
 	// This doesn't fire when active tab changes
-	function determineAction(tabId,changeInfo, tabInfo){
+	const determineAction = (tabId,changeInfo, tabInfo) => {
 		if(changeInfo.audible === undefined && changeInfo.mutedInfo === undefined){
 				return 0
 		}
@@ -103,9 +104,10 @@ let soundman = new function(){
 			handleUpdated(tabId,changeInfo);
 		}
 		return 0
-	}
+	};
+	
 	// Handle changes to tabs
-	function handleUpdated(tabId,changeInfo){
+	const handleUpdated = (tabId,changeInfo) => {
 		
 		let tab = SBtabs.get(tabId) || SBtabs.create(tabId,true);
 		
@@ -128,28 +130,31 @@ let soundman = new function(){
 		if(!tab.muted && !tab.paused && !tab.audible && !tab.pinned){
 			handleRemoved(tabId);
 		}
-	}
+	};
+	
 	// Create a menuitem with associated id
-	let createMenu = (id) => {
+	const createMenu = (id) => {
 		browser.menus.create({
 		id: "Soundman-" + id,
 		title: "Soundman Item",
 		contexts: ["page"],
 		icons: {"16":"Soundman16.png"}
 		});
-	}
+	};
+	
 	// Remove menuitem for this tab
-	let removeMenu = (id) => { browser.menus.remove("Soundman-"+id) }
+	const removeMenu = (id) => { browser.menus.remove("Soundman-"+id) };
 	
 	// Remove from manager
-	let handleRemoved = (tabId) => {
+	const handleRemoved = (tabId) => {
 		if(SBtabs.get(tabId)){
 			SBtabs.remove(tabId);
 			removeMenu(tabId);
 		}
-	}
+	};
+	
 	// Pin tab
-	let handlePinned = (tabId) => {
+	const handlePinned = (tabId) => {
 		let tab = SBtabs.get(tabId);
 		if(tab && tab.pinned){
 			unpin(tabId);
@@ -159,18 +164,18 @@ let soundman = new function(){
 			}
 			SBtabs.set(tabId,"pinned",true);
 		}
-	}
+	};
+	
 	// Unpin tab
-	let unpin = (tabId) => {
+	const unpin = (tabId) => {
 		let tab = SBtabs.get(tabId);
 		SBtabs.set(tabId,"pinned",false);
 		if(!tab.muted && !tab.paused && !tab.audible){
 			handleRemoved(tabId);
 		}
-		
-	}
+	};
 	
-	let selectMenuUpdate = (info,tab) => {
+	const selectMenuUpdate = (info,tab) => {
 		// Handle tab context menu here
 		if(info.contexts[0] === "tab"){
 			let SBtab = SBtabs.get(tab.id);
@@ -185,9 +190,10 @@ let soundman = new function(){
 			updateMenu();
 		}
 		return 0
-	}
+	};
+	
 	// Update content context menu
-	let updateMenu = () => {
+	const updateMenu = () => {
 		// Loop through all id's in SBtabs and get the corresponding tab object
 		let promises = [];
 		for (let id in SBtabs.tabs){
@@ -212,13 +218,15 @@ let soundman = new function(){
 			}
 			
 		}).then(() => { browser.menus.refresh(); });
-	}
+	};
+	
 	// map modifier keys to actions
-	let getMenuAction = (mods) => {
+	const getMenuAction = (mods) => {
 		return options[mods[0]+"Key"]
-	}
+	};
+	
 	// Playback control
-	let playback = (id) => {
+	const playback = (id) => {
 		let tab = SBtabs.get(id);
 		if(!tab){
 			return 0
@@ -267,13 +275,15 @@ let soundman = new function(){
 			allFrames:true
 		});
 		return 0
-	}
+	};
+	
 	// Mute this tab
-	let mute = (tab)=>{
+	const mute = (tab) => {
 		browser.tabs.update(tab,{muted:!(SBtabs.get(tab).muted)})
-	}
+	};
+	
 	// Select which action to take on message
-	let handleMessage = (request,sender,sendResponse) => {
+	const handleMessage = (request,sender,sendResponse) => {
 		// Don't care about other senders
 		if(sender.id != "soundman@example.com"){
 			return
@@ -289,9 +299,9 @@ let soundman = new function(){
 			// update options based on message from options document
 			setOptions(request.SBOptions);
 		}
-	}
+	};
+	
 	// Set options on startup
-	// On first
 	browser.storage.local.get(["menuOptions"]).then((options) => {setOptions(options.menuOptions)});
 	// Listen to tab changes
 	browser.tabs.onUpdated.addListener(determineAction);
@@ -317,7 +327,8 @@ let soundman = new function(){
 	// Select which tabId should switch to
 	// newId == id of the tab that registered the menuitem
 	// curId == id of currently selected tab
-	let getSwitchTabId = (newId,curId,curTitle) => {
+	
+	const getSwitchTabId = (newId,curId,curTitle) => {
 		let retval;
 		// Store the previous tab info if we changed to a tab using Soundman
 		if (newId != curId){
