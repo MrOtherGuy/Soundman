@@ -1,10 +1,9 @@
 "use strict;"
 // Set default options
 browser.runtime.onInstalled.addListener( () => {
-  let gettingItem = browser.storage.local.get(["menuOptions"]);
+  let gettingItem = browser.storage.local.get(["menuOptions","automute"]);
   gettingItem.then((res) => {
-		let options = res.menuOptions;
-		let names = options ? Object.getOwnPropertyNames(options) : [];
+		let names = res.menuOptions ? Object.getOwnPropertyNames(res.menuOptions) : [];
 		if (!(names.includes("changeTabKey")
 					&& names.includes("muteKey")
 					&& names.includes("pauseKey"))){
@@ -14,6 +13,11 @@ browser.runtime.onInstalled.addListener( () => {
 					pauseKey: "Ctrl",
 					muteKey: "Shift"
 				}
+			});
+		}
+		if(!((res.automute === true )||(res.automute === false))){
+			browser.storage.local.set({	
+				automute: false
 			});			
 		}
   });
@@ -23,7 +27,7 @@ const soundman = new function(){
 	// getTabs is for debug purposes
 	this.getTabs = () => { return SBtabs.tabs };
 	// Current options
-	const options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute"};
+	const options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute",automute:false};
 	// Manager to store tab states
 	const SBtabs = new function(){
 		this.tabs = {};
@@ -49,6 +53,8 @@ const soundman = new function(){
 		
 		this.create = (id,audible) => {
 			if (this.get(id) === null){
+				/* Mute old tabs */
+				options.automute && browser.tabs.get(id).then(muteOtherTabs);				
 				this.tabs[id] = {
 					muted:false,
 					audible:!!audible,
@@ -63,27 +69,45 @@ const soundman = new function(){
 		this.remove = (id) => { delete this.tabs[id] };
 	};
 	
+	const muteOtherTabs = (tabInfo) => {
+		if(tabInfo.active){
+			let tabNames = Object.getOwnPropertyNames(SBtabs.tabs);
+			for (let tabId of tabNames){
+				if(!(tabInfo.id === +tabId) && !SBtabs.get(tabId).muted){
+					mute(+tabId);
+				}
+			}
+		}
+	}
+	
 	// Validate and map click modifiers
 	const setOptions = (opt) => {
 		if(!opt){
 			//This can happen on first install, but options is initialized to correct values at that time anyway
 			return
 		}
+		let mods = opt.menuOptions;
 		let valids = [undefined,"Ctrl","Shift"];
-		let diff = ((opt.changeTabKey != opt.pauseKey)
-									&& (opt.changeTabKey != opt.muteKey)
-									&& (opt.muteKey != opt.pauseKey));
+		let diff = ((mods.changeTabKey != mods.pauseKey)
+									&& (mods.changeTabKey != mods.muteKey)
+									&& (mods.muteKey != mods.pauseKey));
 		
 		if(diff
-			&& valids.includes(opt.changeTabKey)
-			&& valids.includes(opt.pauseKey)
-			&& valids.includes(opt.muteKey)){
-			options[opt.changeTabKey+"Key"] = "switch";
-			options[opt.pauseKey+"Key"] = "playback";
-			options[opt.muteKey+"Key"] = "mute";
+			&& valids.includes(mods.changeTabKey)
+			&& valids.includes(mods.pauseKey)
+			&& valids.includes(mods.muteKey)){
+			options[mods.changeTabKey+"Key"] = "switch";
+			options[mods.pauseKey+"Key"] = "playback";
+			options[mods.muteKey+"Key"] = "mute";
 			
 		}else{
 			console.log("invalid key configuration")
+		}
+		if(opt.automute === true || opt.automute === false){
+			options.automute = opt.automute;
+		}else{
+			console.log("invalid automute state: " + opt.automute);
+			options.automute = false;
 		}
 	};
 	
@@ -302,10 +326,11 @@ const soundman = new function(){
 	};
 	
 	// Set options on startup
-	browser.storage.local.get(["menuOptions"]).then((options) => {setOptions(options.menuOptions)});
+	browser.storage.local.get(["menuOptions","automute"]).then((options) => {setOptions(options)});
 	// Listen to tab changes
-	browser.tabs.onUpdated.addListener(determineAction);
-	// Firefox 61 supports filtering onUpdated	//browser.tabs.onUpdated.addListener(determineAction,{properties:["audible","mutedInfo"]});
+	//browser.tabs.onUpdated.addListener(determineAction);
+	// Firefox 61 supports filtering onUpdated	
+	browser.tabs.onUpdated.addListener(determineAction,{properties:["audible","mutedInfo"]});
 	
 	// Remove the tab from soundman if the tab was closed
 	browser.tabs.onRemoved.addListener(handleRemoved);

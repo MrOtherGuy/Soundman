@@ -1,34 +1,38 @@
 function saveOptions(e) {
-	var opt = {
+	let opt = {
+		menuOptions:{
 		"changeTabKey":document.querySelector("#switchSelection").value,
 		"pauseKey":document.querySelector("#playbackSelection").value,
-		"muteKey":document.querySelector("#muteSelection").value};
+		"muteKey":document.querySelector("#muteSelection").value
+		},
+		automute:document.querySelector("#automuteSelection").checked
+	};
 		
-		
-		var valids = [undefined,"Ctrl","Shift"];
-		
-		for (var op in opt){
-			if (opt[op] === "sb_undefined"){
-				opt[op] = undefined;
+		let valids = [undefined,"Ctrl","Shift"];
+		let mods = opt.menuOptions;
+		for (let op in mods){
+			if (mods[op] === "sb_undefined"){
+				mods[op] = undefined;
 			}
 		}
-		var diff = ((opt.changeTabKey != opt.pauseKey)
-									&& (opt.changeTabKey != opt.muteKey)
-									&& (opt.muteKey != opt.pauseKey));
+		let diff = ((mods.changeTabKey != mods.pauseKey)
+									&& (mods.changeTabKey != mods.muteKey)
+									&& (mods.muteKey != mods.pauseKey));
 		if(diff
-			&& valids.includes(opt.changeTabKey)
-			&& valids.includes(opt.pauseKey)
-			&& valids.includes(opt.muteKey)){
-			
+			&& valids.includes(mods.changeTabKey)
+			&& valids.includes(mods.pauseKey)
+			&& valids.includes(mods.muteKey)
+			&& (opt.automute === true || opt.automute === false)){
 			browser.storage.local.set({
 				menuOptions:{
-					changeTabKey:opt.changeTabKey,
-					pauseKey:opt.pauseKey,
-					muteKey:opt.muteKey
-				}
+					changeTabKey:mods.changeTabKey,
+					pauseKey:mods.pauseKey,
+					muteKey:mods.muteKey
+				},
+				automute:opt.automute
 			});
 			notifyBackground(opt);
-			feedback(false,"OK")
+			feedback(false,"OK");
 		}else{
 			feedback(true,(diff ? "" : "Two action have same modifier"));
 		}
@@ -36,9 +40,9 @@ function saveOptions(e) {
 }
 
 function feedback(err,str){
-	var elem = document.getElementById("feedback");
-	var color = err ? "red":"green";
-	var fdb = err ? "Invalid key configuration " + str : "OK";
+	let elem = document.getElementById("feedback");
+	let color = err ? "red":"green";
+	let fdb = err ? "Invalid key configuration " + str : "OK";
 	elem.textContent = fdb;
 	elem.style.color = color;
 	return 0
@@ -52,7 +56,7 @@ function notifyBackground(output){
 
 
 function toSelectValue(str){
-	var retval = str;
+	let retval = str;
 	if (str === undefined){
 		retval = "sb_undefined";
 	}
@@ -61,15 +65,16 @@ function toSelectValue(str){
 
 function restoreOptions() {
 
-  var gettingItem = browser.storage.local.get(["menuOptions"]);
+  let gettingItem = browser.storage.local.get(["menuOptions","automute"]);
   gettingItem.then((res) => {
-		var options = res.menuOptions;
+		let options = res.menuOptions;
 		document.querySelector("#playbackSelection").value = toSelectValue(options.pauseKey);
 
 		document.querySelector("#switchSelection").value = toSelectValue(options.changeTabKey);
 
 		document.querySelector("#muteSelection").value = toSelectValue(options.muteKey);
 
+		document.querySelector("#automuteSelection").checked = res.automute;
   });
 }
 
