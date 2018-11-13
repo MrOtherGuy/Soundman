@@ -30,16 +30,16 @@
 	<h3>Known issues</h3>
 	<ul>
 		<li>Playback control (play/pause) is website dependent and may not work everywhere and might behave unexpectedly when there are multiple audio sources.</li>
-		<li>Soundman tab states don't persist between Firefox restarts</li>
+		<li>Hotkeys might behave confusingly when there are multiple audible tabs. As hotkeys are toggles, they prioritize tabs which have previously been muted or paused via soundman.</li>
 	</ul>
-	<h3>Changes Soundman 0.0.9</h3>
+	<h3>Changes Soundman 0.1.4</h3>
 	<ul>
-		<li>Add option to auto-mute other tabs when active tab becomes audible</li>
+		<li>Added configurable hotkeys to toggle muted and paused states</li>
 	</ul>
 	</div>
 	<h3>Options</h3>
 	<span>Select menu click modifier for different actions:</span>
-	<span id="feedback" style="color:red"></span>
+	
 	<div>
 		<label>Play/Pause playback</label>
 		<select id="playbackSelection">
@@ -67,6 +67,22 @@
 	<div>
 		<input type="checkbox" id="automuteSelection">Auto-mute other tabs when active tab becomes audible</input>
 	</div>
+	<div>
+		<h3>Hotkeys</h3>
+		<p>Valid Hotkeys are form: "Ctrl+Shift+Key" OR "MediaPlayPause". Shift is optional and Key is uppercase alphanumeric or a function key such as F7</p>
+		<p>On Mac Ctrl means the Command key (type Ctrl here, trigger it with Command)</p>
+		<button id="hk_reset" width="100px">Reset hotkeys</button>
+		<br>
+		<label>Play/Pause</label>
+		<input type="text" id="Pause_HKSelection" value="Ctrl+F7" pattern="^((Ctrl\+)(Shift\+)?([A-Z0-9]|(F[1-9]))|MediaPlayPause)$"></input>
+		<span></span>
+		<br>
+		<label>Mute/Unmute</label>
+		<input type="text" id="Mute_HKSelection" value="Ctrl+F7" pattern="^((Ctrl\+)(Shift\+)?([A-Z0-9]|(F[1-9]))|MediaPlayPause)$"></input>
+		<span></span>
+	</div>
+	<br>
+	<span id="feedback" style="color:red"></span>
    <button id="saveButton" type="submit">Save</button>
 	 <script src="options.js"></script>
 </body>

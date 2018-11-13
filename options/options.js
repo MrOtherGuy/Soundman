@@ -5,7 +5,11 @@ function saveOptions(e) {
 		"pauseKey":document.querySelector("#playbackSelection").value,
 		"muteKey":document.querySelector("#muteSelection").value
 		},
-		automute:document.querySelector("#automuteSelection").checked
+		automute:document.querySelector("#automuteSelection").checked,
+		hotkeys:{
+			muteKey: document.querySelector("#Mute_HKSelection").value,
+			pauseKey: document.querySelector("#Pause_HKSelection").value
+		}
 	};
 		
 		let valids = [undefined,"Ctrl","Shift"];
@@ -22,17 +26,23 @@ function saveOptions(e) {
 			&& valids.includes(mods.changeTabKey)
 			&& valids.includes(mods.pauseKey)
 			&& valids.includes(mods.muteKey)
-			&& (opt.automute === true || opt.automute === false)){
+			&& (opt.automute === true || opt.automute === false)
+			&& updateHotkeys()){
 			browser.storage.local.set({
 				menuOptions:{
 					changeTabKey:mods.changeTabKey,
 					pauseKey:mods.pauseKey,
 					muteKey:mods.muteKey
 				},
-				automute:opt.automute
+				automute:opt.automute,
+				hotkeys: {
+					muteKey: opt.hotkeys.muteKey,
+					pauseKey: opt.hotkeys.pauseKey
+				}
 			});
 			notifyBackground(opt);
 			feedback(false,"OK");
+			updateHotkeys();
 		}else{
 			feedback(true,(diff ? "" : "Two action have same modifier"));
 		}
@@ -54,6 +64,38 @@ function notifyBackground(output){
 	});
 }
 
+function updateHotkeys(){
+	return (
+	updateHotkey("smhk_muteUnmute",document.querySelector("#Mute_HKSelection"))
+	&& updateHotkey("smhk_playPause",document.querySelector("#Pause_HKSelection"))
+	)
+}
+
+function updateHotkey(name,e) {
+	if(e.validity.valid){
+		browser.commands.update({
+			name: name,
+			shortcut: e.value
+		}).then(()=>(e.nextSibling.textContent = "OK"),(err) => (e.nextSibling.textContent = err));
+	}else{
+		e.nextSibling.textContent = "Hotkey is invalid"
+	}
+	return e.validity.valid
+}
+
+function resetHotkeys() {
+	let defaults = {muteKey: "Ctrl+Shift+N", pauseKey: "MediaPlayPause"};
+	browser.commands.getAll().then((hks)=>{
+		hks.forEach((hk) => (browser.commands.reset(hk.name)));
+	}).then(browser.storage.local.set({
+		hotkeys: {
+			muteKey: defaults.muteKey,
+			pauseKey: defaults.pauseKey
+		}
+	}));
+	document.querySelector("#Pause_HKSelection").value = "MediaPlayPause";
+	document.querySelector("#Mute_HKSelection").value = "Ctrl+Shift+N";
+}
 
 function toSelectValue(str){
 	let retval = str;
@@ -65,7 +107,7 @@ function toSelectValue(str){
 
 function restoreOptions() {
 
-  let gettingItem = browser.storage.local.get(["menuOptions","automute"]);
+  let gettingItem = browser.storage.local.get(["menuOptions","automute","hotkeys"]);
   gettingItem.then((res) => {
 		let options = res.menuOptions;
 		document.querySelector("#playbackSelection").value = toSelectValue(options.pauseKey);
@@ -75,8 +117,13 @@ function restoreOptions() {
 		document.querySelector("#muteSelection").value = toSelectValue(options.muteKey);
 
 		document.querySelector("#automuteSelection").checked = res.automute;
+		
+		document.querySelector("#Mute_HKSelection").value = res.hotkeys.muteKey;
+		
+		document.querySelector("#Pause_HKSelection").value = res.hotkeys.pauseKey;
   });
 }
 
 document.addEventListener('DOMContentLoaded', restoreOptions);
 document.getElementById("saveButton").addEventListener("click", saveOptions,false);
+document.getElementById("hk_reset").addEventListener("click",resetHotkeys,false);

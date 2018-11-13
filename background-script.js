@@ -1,7 +1,7 @@
 "use strict;"
 // Set default options
 browser.runtime.onInstalled.addListener( () => {
-  let gettingItem = browser.storage.local.get(["menuOptions","automute"]);
+  let gettingItem = browser.storage.local.get(["menuOptions","automute","hotkeys"]);
   gettingItem.then((res) => {
 		let names = res.menuOptions ? Object.getOwnPropertyNames(res.menuOptions) : [];
 		if (!(names.includes("changeTabKey")
@@ -20,11 +20,19 @@ browser.runtime.onInstalled.addListener( () => {
 				automute: false
 			});			
 		}
+		if(!(res.hotkeys)){
+			browser.storage.local.set({	
+				hotkeys:{
+					pauseKey: "MediaPlayPause",
+					muteKey: "Ctrl+Shift+N"
+				}
+			});			
+		}
   });
 });
 
 const soundman = new function(){
-	// getTabs is for debug purposes
+	// getTabs is used for hotkey commands
 	this.getTabs = () => { return SBtabs.tabs };
 	// Current options
 	const options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute",automute:false};
@@ -133,7 +141,14 @@ const soundman = new function(){
 	// Handle changes to tabs
 	const handleUpdated = (tabId,changeInfo) => {
 		
-		let tab = SBtabs.get(tabId) || SBtabs.create(tabId,true);
+		let tab = SBtabs.get(tabId);
+		
+		// Ignore cases where a tab was muted by action other than this extension
+		if(!tab && (changeInfo.mutedInfo && changeInfo.mutedInfo.extensionId != browser.runtime.id)){
+			return
+		}else{
+			tab = SBtabs.create(tabId,true);
+		}
 		
 		/*
 		* Event runs twice on muted state changes...
@@ -404,5 +419,43 @@ const soundman = new function(){
 			}
 		}
 		return
+	});
+	// Hotkey handling
+	const getHotkeyTarget = (property) => {
+		let tabIds = Object.keys(soundman.getTabs());
+		let selected = null;
+
+		for(let id of tabIds){
+			if(SBtabs.get(id)[property]){
+				selected = parseInt(id);
+				break;
+			}
+		}
+		if(selected === null){
+			for(let id of tabIds){
+				if(SBtabs.get(id).audible){
+					selected = parseInt(id);
+					break;
+				}
+			}
+		}
+		return selected
+	}
+	
+	browser.commands.onCommand.addListener(function(command) {
+		let tabId = null;
+
+		switch(command){
+			case "smhk_playPause":
+				tabId = getHotkeyTarget("paused");
+				tabId != null && playback(tabId)
+				break;
+			case "smhk_muteUnmute":
+				tabId = getHotkeyTarget("muted");
+				tabId != null && mute(tabId);
+				break;
+			default:
+				console.log("this shouldn't happen...")
+		}
 	});
 };

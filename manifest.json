@@ -4,7 +4,7 @@
   "manifest_version": 2,
   "name": "Soundman",
   "permissions": ["tabs","<all_urls>","menus","storage"],
-  "version": "0.0.9",
+  "version": "0.1.4",
 	"background": {
 		"scripts": ["background-script.js"]
 	},
@@ -12,6 +12,20 @@
       "page": "options/options.html",
       "browser_style": true
   },
+	"commands": {
+		"smhk_playPause": {
+			"suggested_key": {
+				"default": "MediaPlayPause"
+			},
+			"description": "Toggle Play/Pause state"
+		},
+		"smhk_muteUnmute": {
+			"suggested_key": {
+				"default": "Ctrl+Shift+N"
+			},
+			"description": "Toggle muted state"
+		}
+	},
 	"applications": {
   "gecko": {
     "id": "soundman@example.com",
