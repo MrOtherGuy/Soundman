@@ -24,7 +24,7 @@ browser.runtime.onInstalled.addListener( () => {
 			browser.storage.local.set({	
 				hotkeys:{
 					pauseKey: "MediaPlayPause",
-					muteKey: "Ctrl+Shift+N"
+					muteKey: "Ctrl+Shift+O"
 				}
 			});			
 		}

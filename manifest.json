@@ -21,7 +21,7 @@
 		},
 		"smhk_muteUnmute": {
 			"suggested_key": {
-				"default": "Ctrl+Shift+N"
+				"default": "Ctrl+Shift+O"
 			},
 			"description": "Toggle muted state"
 		}

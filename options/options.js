@@ -84,7 +84,7 @@ function updateHotkey(name,e) {
 }
 
 function resetHotkeys() {
-	let defaults = {muteKey: "Ctrl+Shift+N", pauseKey: "MediaPlayPause"};
+	let defaults = {muteKey: "Ctrl+Shift+O", pauseKey: "MediaPlayPause"};
 	browser.commands.getAll().then((hks)=>{
 		hks.forEach((hk) => (browser.commands.reset(hk.name)));
 	}).then(browser.storage.local.set({
@@ -93,8 +93,8 @@ function resetHotkeys() {
 			pauseKey: defaults.pauseKey
 		}
 	}));
-	document.querySelector("#Pause_HKSelection").value = "MediaPlayPause";
-	document.querySelector("#Mute_HKSelection").value = "Ctrl+Shift+N";
+	document.querySelector("#Pause_HKSelection").value = defaults.pauseKey;
+	document.querySelector("#Mute_HKSelection").value = defaults.muteKey
 }
 
 function toSelectValue(str){
