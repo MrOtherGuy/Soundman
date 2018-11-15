@@ -11,48 +11,57 @@ function saveOptions(e) {
 			pauseKey: document.querySelector("#Pause_HKSelection").value
 		}
 	};
+	let valids = [undefined,"Ctrl","Shift"];
+	let mods = opt.menuOptions;
+	let message = {valid: true, modifiers: "Click modifiers: ", hotkeys: "Hotkeys: "};
+	for (let op in mods){
+		if (mods[op] === "sb_undefined"){
+			mods[op] = undefined;
+		}
+	}
+	let diff = ((mods.changeTabKey != mods.pauseKey)
+								&& (mods.changeTabKey != mods.muteKey)
+								&& (mods.muteKey != mods.pauseKey));
+	if(diff
+		&& valids.includes(mods.changeTabKey)
+		&& valids.includes(mods.pauseKey)
+		&& valids.includes(mods.muteKey)
+		&& (opt.automute === true || opt.automute === false)
+		){
 		
-		let valids = [undefined,"Ctrl","Shift"];
-		let mods = opt.menuOptions;
-		for (let op in mods){
-			if (mods[op] === "sb_undefined"){
-				mods[op] = undefined;
+		message.modifiers += "OK";
+		//	feedback(false,"OK");
+		//	updateHotkeys();
+	}else{
+		message.valid = false;
+		message.modifiers += "Two action have same modifier";
+	//	feedback(true,(diff ? "" : "Two action have same modifier"));
+	}
+	message.valid = updateHotkeys();
+	message.hotkeys += (message.valid ? "OK" : "Invalid");
+	feedback(message);
+	if(message.valid){
+		browser.storage.local.set({
+			menuOptions:{
+				changeTabKey:mods.changeTabKey,
+				pauseKey:mods.pauseKey,
+				muteKey:mods.muteKey
+			},
+			automute:opt.automute,
+			hotkeys: {
+				muteKey: opt.hotkeys.muteKey,
+				pauseKey: opt.hotkeys.pauseKey
 			}
-		}
-		let diff = ((mods.changeTabKey != mods.pauseKey)
-									&& (mods.changeTabKey != mods.muteKey)
-									&& (mods.muteKey != mods.pauseKey));
-		if(diff
-			&& valids.includes(mods.changeTabKey)
-			&& valids.includes(mods.pauseKey)
-			&& valids.includes(mods.muteKey)
-			&& (opt.automute === true || opt.automute === false)
-			&& updateHotkeys()){
-			browser.storage.local.set({
-				menuOptions:{
-					changeTabKey:mods.changeTabKey,
-					pauseKey:mods.pauseKey,
-					muteKey:mods.muteKey
-				},
-				automute:opt.automute,
-				hotkeys: {
-					muteKey: opt.hotkeys.muteKey,
-					pauseKey: opt.hotkeys.pauseKey
-				}
-			});
-			notifyBackground(opt);
-			feedback(false,"OK");
-			updateHotkeys();
-		}else{
-			feedback(true,(diff ? "" : "Two action have same modifier"));
-		}
+		});
+		notifyBackground(opt);
+	}
   e.preventDefault();
 }
 
-function feedback(err,str){
+function feedback(err){
 	let elem = document.getElementById("feedback");
-	let color = err ? "red":"green";
-	let fdb = err ? "Invalid key configuration " + str : "OK";
+	let color = err.valid ? "green":"red";
+	let fdb = err.valid ? "OK" : "Error: " + err.modifiers + " " + err.hotkeys ;
 	elem.textContent = fdb;
 	elem.style.color = color;
 	return 0
