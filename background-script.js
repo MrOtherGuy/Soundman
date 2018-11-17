@@ -33,9 +33,9 @@ browser.runtime.onInstalled.addListener( () => {
 
 const soundman = new function(){
 	
+	// new sbtab initializer
 	function sbtab(id,audible){
 		this.id = id;
-		let muted = false;
 		this.status = { 
 			audible: audible,
 			muted: false,
@@ -92,21 +92,29 @@ const soundman = new function(){
 			});
 			return 0
 		};
+		
 		this.set = (property,value) => {
 			if (this.status.hasOwnProperty(property) && (value === true || value === false)){
 				this.status[property] = value;
 			}
 		};
+		
 		this.isMuted = () => (this.status.muted);
 		this.isPinned = () => (this.status.pinned);
 		this.isAudible = () => (this.status.audible);
 		this.isPaused = () => (this.status.paused);
+		
 		return Object.freeze(this)
 	}
 	// getTabs is used for hotkey commands
 	this.getTabs = () => { return SBtabs.tabs };
 	// Current options
-	const options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute",automute:false};
+	const options = {
+		undefinedKey:"switch",
+		CtrlKey:"playback",
+		ShiftKey:"mute",
+		automute:false
+		};
 	
 	// Manager to store tab states
 	const SBtabs = new function(){
@@ -122,13 +130,6 @@ const soundman = new function(){
 			this.id = null;
 			this.fromTab = null
 		};
-		/*
-		this.set = (id, property, value) => {
-			let tab = this.get(id);
-			if(tab && (value === true || value === false)){
-				tab[property] = value;
-			}
-		};*/
 		
 		this.get = (id) => { return (this.tabs[id] || null) };
 		
@@ -137,12 +138,6 @@ const soundman = new function(){
 				/* Mute old tabs */
 				options.automute && browser.tabs.get(id).then(muteOtherTabs);				
 				this.tabs[id] = new sbtab(id,!!audible);
-				/*this.tabs[id] = {
-					muted:false,
-					audible:!!audible,
-					pinned:false,
-					paused:false
-					};*/
 				createMenu(id);
 			}
 			return this.get(id)
@@ -246,17 +241,15 @@ const soundman = new function(){
 		* So need to sync state on muted change otherwise the tab id becomes
 		* unregistered because tab is no longer paused or muted or audible
 		*/
-		//SBtabs.set(tabId,"audible",changeInfo.audible);
+
 		tab.set("audible",changeInfo.audible);
 		if(tab.isAudible() && tab.isPaused()){
 			tab.set("paused",false);
 		}
 		if (changeInfo.mutedInfo){
-			//SBtabs.set(tabId,"muted",changeInfo.mutedInfo.muted);
 			tab.set("muted",changeInfo.mutedInfo.muted);
 			// Also sync audible state now
-			//SBtabs.set(tabId,"audible",!tab.muted);
-			tab.set("audible",!tab.status.muted)
+			tab.set("audible",!tab.isMuted())
 		}
 		if(!tab.isMuted() && !tab.isPaused() && !tab.isAudible() && !tab.isPinned()){
 			handleRemoved(tabId,false);
@@ -359,68 +352,7 @@ const soundman = new function(){
 	const getMenuAction = (mods) => {
 		return options[mods[0]+"Key"]
 	};
-	
-	// Playback control
-/*	const togglePlayback = (id) => {
-		let tab = SBtabs.get(id);
-		if(!tab){
-			return 0
-		}
-		let state = tab.paused;
-		// Select the function
-		let func = state ? ".play();": ".pause();";
-		// Construct and send this script to content window
-		// Page specific functionality is sadness but necessary
-		browser.tabs.executeScript(id,{
-			code: 
-				`(function(){
-					var state = ${!state};
-					var host = document.location.host.toString();
-					var specialCases = ["soundcloud.com","soundclick.com"];
-					var service = "SB_default";
-					for (var test of specialCases){
-						if (host.indexOf(test) != -1){
-							service = test;
-							break;
-						}
-					}
-					var media;
-					switch(service){
-						case "soundcloud.com":
-							if(host == "w.soundcloud.com"){
-								window.postMessage(JSON.stringify({method:"toggle"}),"https://"+host);
-								media = true;
-							}else{
-								media = document.getElementsByClassName("playControl")[0]
-									|| null;
-								media && media.tagName === "BUTTON" && media.click();
-							}
-							break;
-						case "soundclick.com":
-							media = document.querySelector("hap-togglePlayback") || null;
-							media && media.click();
-							break;
-						case "SB_default":
-							media = document.getElementsByTagName("video")[0]
-										|| document.getElementsByTagName("audio")[0]
-										|| null;
-							media && media${func}
-							break;
-						default:
-							return 0;
-					}
-					browser.runtime.sendMessage({ elem:!!media,state:state })
-				})()`,
-			allFrames:true
-		});
-		return 0
-	};*/
-	
-	// Mute this tab
-	/*const toggleMute = (tab) => {
-		browser.tabs.update(tab,{muted:!(SBtabs.get(tab).muted)})
-	};*/
-	
+
 	// Select which action to take on message
 	const handleMessage = (request,sender,sendResponse) => {
 		// Don't care about other senders
