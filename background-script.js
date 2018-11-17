@@ -32,10 +32,82 @@ browser.runtime.onInstalled.addListener( () => {
 });
 
 const soundman = new function(){
+	
+	function sbtab(id,audible){
+		this.id = id;
+		let muted = false;
+		this.status = { 
+			audible: audible,
+			muted: false,
+			pinned: false,
+			paused: false
+		};
+		this.toggleMute = () => (browser.tabs.update(this.id,{muted:!this.status.muted}));
+		this.togglePlayback = () => {
+			let state = this.status.paused || (this.status.pinned && !this.status.audible) ;
+			// Select the function
+			let func = state ? ".play();": ".pause();";
+			// Construct and send this script to content window
+			// Page specific functionality is sadness but necessary
+			browser.tabs.executeScript(this.id,{
+				code: 
+					`(function(){
+						var state = ${!state};
+						var host = document.location.host.toString();
+						var specialCases = ["soundcloud.com","soundclick.com"];
+						var service = "SB_default";
+						for (var test of specialCases){
+							if (host.indexOf(test) != -1){
+								service = test;
+								break;
+							}
+						}
+						var media;
+						switch(service){
+							case "soundcloud.com":
+								if(host == "w.soundcloud.com"){
+									window.postMessage(JSON.stringify({method:"toggle"}),"https://"+host);
+									media = true;
+								}else{
+									media = document.getElementsByClassName("playControl")[0] || null;
+									media && media.tagName === "BUTTON" && media.click();
+								}
+								break;
+							case "soundclick.com":
+								media = document.querySelector(".hap-playback-toggle") || null;
+								media && media.click();
+								break;
+							case "SB_default":
+								media = document.getElementsByTagName("video")[0]
+										|| document.getElementsByTagName("audio")[0]
+										|| null;
+								media && media${func}
+								break;
+							default:
+								return 0;
+						}
+						browser.runtime.sendMessage({ elem:!!media,state:state })
+					})()`,
+				allFrames:true
+			});
+			return 0
+		};
+		this.set = (property,value) => {
+			if (this.status.hasOwnProperty(property) && (value === true || value === false)){
+				this.status[property] = value;
+			}
+		};
+		this.isMuted = () => (this.status.muted);
+		this.isPinned = () => (this.status.pinned);
+		this.isAudible = () => (this.status.audible);
+		this.isPaused = () => (this.status.paused);
+		return Object.freeze(this)
+	}
 	// getTabs is used for hotkey commands
 	this.getTabs = () => { return SBtabs.tabs };
 	// Current options
 	const options = {undefinedKey:"switch",CtrlKey:"playback",ShiftKey:"mute",automute:false};
+	
 	// Manager to store tab states
 	const SBtabs = new function(){
 		this.tabs = {};
@@ -50,13 +122,13 @@ const soundman = new function(){
 			this.id = null;
 			this.fromTab = null
 		};
-		
+		/*
 		this.set = (id, property, value) => {
 			let tab = this.get(id);
 			if(tab && (value === true || value === false)){
 				tab[property] = value;
 			}
-		};
+		};*/
 		
 		this.get = (id) => { return (this.tabs[id] || null) };
 		
@@ -64,12 +136,13 @@ const soundman = new function(){
 			if (this.get(id) === null){
 				/* Mute old tabs */
 				options.automute && browser.tabs.get(id).then(muteOtherTabs);				
-				this.tabs[id] = {
+				this.tabs[id] = new sbtab(id,!!audible);
+				/*this.tabs[id] = {
 					muted:false,
 					audible:!!audible,
 					pinned:false,
 					paused:false
-					};
+					};*/
 				createMenu(id);
 			}
 			return this.get(id)
@@ -77,7 +150,7 @@ const soundman = new function(){
 		
 		this.remove = (id,fromSelf) => { 
 			if(!fromSelf && this.autoUnmuteId){
-				toggleMute(this.autoUnmuteId);
+				SBtabs.get(this.autoUnmuteId).toggleMute();
 				this.autoUnmuteId = null;
 			}
 			delete this.tabs[id];
@@ -90,8 +163,9 @@ const soundman = new function(){
 			let tabNames = Object.getOwnPropertyNames(SBtabs.tabs);
 			let first = true;
 			for (let tabId of tabNames){
-				if(!(tabInfo.id === +tabId) && !SBtabs.get(tabId).muted){
-					toggleMute(+tabId);
+				let aTab = SBtabs.get(tabId);
+				if(!(tabInfo.id === +tabId) && !aTab.isMuted()){
+					aTab.toggleMute();
 					if (first){
 						SBtabs.autoUnmuteId = +tabId;
 						first = false;
@@ -141,7 +215,7 @@ const soundman = new function(){
 	
 	// Filter out uninteresting changes
 	// This doesn't fire when active tab changes
-	const determineAction = (tabId,changeInfo, tabInfo) => {
+	const determineAction = (tabId, changeInfo, tabInfo) => {
 		if(changeInfo.audible === undefined && changeInfo.mutedInfo === undefined){
 				return 0
 		}
@@ -172,16 +246,19 @@ const soundman = new function(){
 		* So need to sync state on muted change otherwise the tab id becomes
 		* unregistered because tab is no longer paused or muted or audible
 		*/
-		SBtabs.set(tabId,"audible",changeInfo.audible);
-		if(tab.audible && tab.paused){
-			SBtabs.set(tabId,"paused",false);
+		//SBtabs.set(tabId,"audible",changeInfo.audible);
+		tab.set("audible",changeInfo.audible);
+		if(tab.isAudible() && tab.isPaused()){
+			tab.set("paused",false);
 		}
 		if (changeInfo.mutedInfo){
-			SBtabs.set(tabId,"muted",changeInfo.mutedInfo.muted);
+			//SBtabs.set(tabId,"muted",changeInfo.mutedInfo.muted);
+			tab.set("muted",changeInfo.mutedInfo.muted);
 			// Also sync audible state now
-			SBtabs.set(tabId,"audible",!tab.muted);
+			//SBtabs.set(tabId,"audible",!tab.muted);
+			tab.set("audible",!tab.status.muted)
 		}
-		if(!tab.muted && !tab.paused && !tab.audible && !tab.pinned){
+		if(!tab.isMuted() && !tab.isPaused() && !tab.isAudible() && !tab.isPinned()){
 			handleRemoved(tabId,false);
 		}
 	};
@@ -214,21 +291,21 @@ const soundman = new function(){
 	// Pin tab
 	const handlePinned = (tabId) => {
 		let tab = SBtabs.get(tabId);
-		if(tab && tab.pinned){
+		if(tab && tab.isPinned()){
 			unpin(tabId);
 		}else{
 			if(!tab){
-				SBtabs.create(tabId);
+			tab = SBtabs.create(tabId);
 			}
-			SBtabs.set(tabId,"pinned",true);
+			tab.set("pinned",true);
 		}
 	};
 	
 	// Unpin tab
 	const unpin = (tabId) => {
 		let tab = SBtabs.get(tabId);
-		SBtabs.set(tabId,"pinned",false);
-		if(!tab.muted && !tab.paused && !tab.audible){
+		tab.set("pinned",false);
+		if(!tab.isMuted() && !tab.isPaused() && !tab.isAudible()){
 			handleRemoved(tabId,true);
 		}
 	};
@@ -239,7 +316,7 @@ const soundman = new function(){
 			let SBtab = SBtabs.get(tab.id);
 			if(SBtab){
 				browser.menus.update("SoundmanDelete",{enabled:true});
-				SBtab.pinned && browser.menus.update("SoundmanPin",{title:"Unpin from Soundman"});
+				SBtab.isPinned() && browser.menus.update("SoundmanPin",{title:"Unpin from Soundman"});
 				browser.menus.refresh();
 				browser.menus.update("SoundmanDelete",{enabled:false});
 				browser.menus.update("SoundmanPin",{title:"Pin to Soundman"});
@@ -267,7 +344,7 @@ const soundman = new function(){
 					title = "🔁 " + SBtabs.prevTab.title;
 				}else{
 					let SBtab = SBtabs.get(tab.id);
-					title = ["","📌"][+SBtab.pinned] + ["🔊","🔇"][+SBtab.muted] + ["▶️ ","⏸ "][+SBtab.paused] + tab.title;
+					title = ["","📌"][+SBtab.isPinned()] + ["🔊","🔇"][+SBtab.isMuted()] + ["▶️ ","⏸ "][+SBtab.isPaused()] + tab.title;
 				}
 				browser.menus.update("Soundman-"+tab.id,{
 				title: title,
@@ -284,7 +361,7 @@ const soundman = new function(){
 	};
 	
 	// Playback control
-	const togglePlayback = (id) => {
+/*	const togglePlayback = (id) => {
 		let tab = SBtabs.get(id);
 		if(!tab){
 			return 0
@@ -299,7 +376,7 @@ const soundman = new function(){
 				`(function(){
 					var state = ${!state};
 					var host = document.location.host.toString();
-					var specialCases = ["soundcloud.com"];
+					var specialCases = ["soundcloud.com","soundclick.com"];
 					var service = "SB_default";
 					for (var test of specialCases){
 						if (host.indexOf(test) != -1){
@@ -319,6 +396,10 @@ const soundman = new function(){
 								media && media.tagName === "BUTTON" && media.click();
 							}
 							break;
+						case "soundclick.com":
+							media = document.querySelector("hap-togglePlayback") || null;
+							media && media.click();
+							break;
 						case "SB_default":
 							media = document.getElementsByTagName("video")[0]
 										|| document.getElementsByTagName("audio")[0]
@@ -333,12 +414,12 @@ const soundman = new function(){
 			allFrames:true
 		});
 		return 0
-	};
+	};*/
 	
 	// Mute this tab
-	const toggleMute = (tab) => {
+	/*const toggleMute = (tab) => {
 		browser.tabs.update(tab,{muted:!(SBtabs.get(tab).muted)})
-	};
+	};*/
 	
 	// Select which action to take on message
 	const handleMessage = (request,sender,sendResponse) => {
@@ -350,8 +431,8 @@ const soundman = new function(){
 		if(sender.envType === "content_child"){
 		
 			let tab = SBtabs.get(sender.tab.id);
-			if (tab && (tab.paused != request.state)){
-				SBtabs.set(sender.tab.id,"paused",!!(request.elem^tab.paused));
+			if (tab && (tab.isPaused() != request.state)){
+				tab.set("paused",!!(request.elem ^ tab.isPaused()));
 			}
 		}else{
 			// update options based on message from options document
@@ -416,10 +497,10 @@ const soundman = new function(){
 			let method = getMenuAction(menus.modifiers);
 			switch (method){
 				case "playback":
-					togglePlayback(tabId);
+					SBtabs.get(tabId).togglePlayback();
 					break;
 				case "mute":
-					toggleMute(tabId);
+					SBtabs.get(tabId).toggleMute();
 					break;
 				case "switch":
 					tabId = getSwitchTabId(tabId,tab.id,tab.title);
@@ -442,9 +523,9 @@ const soundman = new function(){
 	const getHotkeyTarget = (property) => {
 		let tabIds = Object.keys(soundman.getTabs());
 		let selected = null;
-
+	// If a site is muted then it won't be paused by hotkey
 		for(let id of tabIds){
-			if(SBtabs.get(id)[property]){
+			if(SBtabs.get(id).status[property]){
 				selected = +id;
 				break;
 			}
@@ -452,9 +533,9 @@ const soundman = new function(){
 		if(selected === null){
 			for(let id of tabIds){
 				let aTab = SBtabs.get(id);
-				if((!selected && aTab.audible) || (aTab.pinned && aTab.audible)){
+				if((!selected && aTab.isAudible()) || (aTab.isPinned() && aTab.isAudible())){
 					selected = +id;
-					if(aTab.pinned){
+					if(aTab.isPinned()){
 						break;
 					}
 				}
@@ -469,11 +550,11 @@ const soundman = new function(){
 		switch(command){
 			case "smhk_playPause":
 				tabId = getHotkeyTarget("paused");
-				tabId != null && togglePlayback(tabId)
+				tabId != null && SBtabs.get(tabId).togglePlayback()
 				break;
 			case "smhk_muteUnmute":
 				tabId = getHotkeyTarget("muted");
-				tabId != null && toggleMute(tabId);
+				tabId != null && SBtabs.get(tabId).toggleMute();
 				break;
 			default:
 				console.log("this shouldn't happen...")
