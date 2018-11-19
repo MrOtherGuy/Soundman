@@ -226,12 +226,14 @@ const soundman = new function(){
 	const handleUpdated = (tabId,changeInfo) => {
 		
 		let tab = SBtabs.get(tabId);
-		
+		//console.log(changeInfo);
 		// Ignore cases where a tab was muted by action other than this extension
-		if(!tab && isExternallyMuted(changeInfo.mutedInfo)){
-			return
-		}else{
-			tab = SBtabs.create(tabId,true);
+		if(!tab){
+			if(isExternallyMuted(changeInfo.mutedInfo)){
+				return
+			}else{
+				tab = SBtabs.create(tabId,true);
+			}
 		}
 		
 		/*
