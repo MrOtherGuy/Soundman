@@ -34,78 +34,76 @@ browser.runtime.onInstalled.addListener( () => {
 const soundman = new function(){
 	
 	// new sbtab initializer
-	function sbtab(id,audible){
+	function SBtab(id,audible){
 		this.id = id;
-		this.status = { 
+		this.status = {
 			audible: audible,
 			muted: false,
 			pinned: false,
 			paused: false
 		};
-		this.toggleMute = () => (browser.tabs.update(this.id,{muted:!this.status.muted}));
-		this.togglePlayback = () => {
-			let state = this.status.paused || (this.status.pinned && !this.status.audible) ;
-			// Select the function
-			let func = state ? ".play();": ".pause();";
-			// Construct and send this script to content window
-			// Page specific functionality is sadness but necessary
-			browser.tabs.executeScript(this.id,{
-				code: 
-					`(function(){
-						var state = ${!state};
-						var host = document.location.host.toString();
-						var specialCases = ["soundcloud.com","soundclick.com"];
-						var service = "SB_default";
-						for (var test of specialCases){
-							if (host.indexOf(test) != -1){
-								service = test;
-								break;
-							}
-						}
-						var media;
-						switch(service){
-							case "soundcloud.com":
-								if(host == "w.soundcloud.com"){
-									window.postMessage(JSON.stringify({method:"toggle"}),"https://"+host);
-									media = true;
-								}else{
-									media = document.getElementsByClassName("playControl")[0] || null;
-									media && media.tagName === "BUTTON" && media.click();
-								}
-								break;
-							case "soundclick.com":
-								media = document.querySelector(".hap-playback-toggle") || null;
-								media && media.click();
-								break;
-							case "SB_default":
-								media = document.getElementsByTagName("video")[0]
-										|| document.getElementsByTagName("audio")[0]
-										|| null;
-								media && media${func}
-								break;
-							default:
-								return 0;
-						}
-						browser.runtime.sendMessage({ elem:!!media,state:state })
-					})()`,
-				allFrames:true
-			});
-			return 0
-		};
-		
-		this.set = (property,value) => {
-			if (this.status.hasOwnProperty(property) && (value === true || value === false)){
-				this.status[property] = value;
-			}
-		};
-		
-		this.isMuted = () => (this.status.muted);
-		this.isPinned = () => (this.status.pinned);
-		this.isAudible = () => (this.status.audible);
-		this.isPaused = () => (this.status.paused);
-		
 		return Object.freeze(this)
-	}
+	};
+	// SBtab methods
+	SBtab.prototype.toggleMute = function(){browser.tabs.update(this.id,{muted:!this.status.muted})};
+	SBtab.prototype.togglePlayback = function(){
+		let state = this.status.paused || (this.status.pinned && !this.status.audible) ;
+		// Select the function
+		let func = state ? ".play();": ".pause();";
+		// Construct and send this script to content window
+		// Page specific functionality is sadness but necessary
+		browser.tabs.executeScript(this.id,{
+			code: 
+				`(function(){
+					var state = ${!state};
+					var host = document.location.host.toString();
+					var specialCases = ["soundcloud.com","soundclick.com"];
+					var service = "SB_default";
+					for (var test of specialCases){
+						if (host.indexOf(test) != -1){
+							service = test;
+							break;
+						}
+					}
+					var media;
+					switch(service){
+						case "soundcloud.com":
+							if(host == "w.soundcloud.com"){
+								window.postMessage(JSON.stringify({method:"toggle"}),"https://"+host);
+								media = true;
+							}else{
+								media = document.getElementsByClassName("playControl")[0] || null;
+								media && media.tagName === "BUTTON" && media.click();
+							}
+							break;
+						case "soundclick.com":
+							media = document.querySelector(".hap-playback-toggle") || null;
+							media && media.click();
+							break;
+						case "SB_default":
+							media = document.getElementsByTagName("video")[0]
+									|| document.getElementsByTagName("audio")[0]
+									|| null;
+							media && media${func}
+							break;
+						default:
+							return 0;
+					}
+					browser.runtime.sendMessage({ elem:!!media,state:state })
+				})()`,
+			allFrames:true
+		});
+	};
+	SBtab.prototype.set = function(property,value){
+		if (this.status.hasOwnProperty(property) && (value === true || value === false)){
+			this.status[property] = value;
+		}
+	};
+	SBtab.prototype.isMuted = function(){return this.status.muted};
+	SBtab.prototype.isPinned = function(){return this.status.pinned};
+	SBtab.prototype.isAudible = function(){return this.status.audible};
+	SBtab.prototype.isPaused = function(){return this.status.paused};
+	SBtab.prototype.isRemovable = function(){return !(this.status.paused || this.status.audible || this.status.muted || this.status.pinned)};
 	// getTabs is used for hotkey commands
 	this.getTabs = () => { return SBtabs.tabs };
 	// Current options
@@ -137,7 +135,7 @@ const soundman = new function(){
 			if (this.get(id) === null){
 				/* Mute old tabs */
 				options.automute && browser.tabs.get(id).then(muteOtherTabs);				
-				this.tabs[id] = new sbtab(id,!!audible);
+				this.tabs[id] = new SBtab(id,!!audible);
 				createMenu(id);
 			}
 			return this.get(id)
@@ -204,6 +202,9 @@ const soundman = new function(){
 	// This is only listening when we change tab from within context menu
 	// If the user changes a tab himself we want to clear the previous tab store
 	const handleActiveChanged = (tabInfo) => {
+		if(SBtabs.get(SBtabs.prevTab.fromTab).isRemovable()){
+			handleRemoved(SBtabs.prevTab.fromTab,false);
+		}
 		SBtabs.prevTab.clear();
 		browser.tabs.onActivated.removeListener(handleActiveChanged);
 	};
@@ -253,7 +254,7 @@ const soundman = new function(){
 			// Also sync audible state now
 			tab.set("audible",!tab.isMuted())
 		}
-		if(!tab.isMuted() && !tab.isPaused() && !tab.isAudible() && !tab.isPinned()){
+		if(tab.isRemovable() && SBtabs.prevTab.fromTab != tabId/*!tab.isMuted() && !tab.isPaused() && !tab.isAudible() && !tab.isPinned()*/){
 			handleRemoved(tabId,false);
 		}
 	};
