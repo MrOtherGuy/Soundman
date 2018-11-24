@@ -32,8 +32,10 @@ browser.runtime.onInstalled.addListener( () => {
 });
 
 const soundman = new function(){
+	// getTabs is used for hotkey commands
+	this.getTabs = () => { return SBtabs.tabs };
 	
-	// new sbtab initializer
+	// SBtab holds the state of a single tab
 	function SBtab(id,audible){
 		this.id = id;
 		this.status = {
@@ -47,51 +49,16 @@ const soundman = new function(){
 	// SBtab methods
 	SBtab.prototype.toggleMute = function(){browser.tabs.update(this.id,{muted:!this.status.muted})};
 	SBtab.prototype.togglePlayback = function(){
-		let state = this.status.paused || (this.status.pinned && !this.status.audible) ;
-		// Select the function
-		let func = state ? ".play();": ".pause();";
-		// Construct and send this script to content window
-		// Page specific functionality is sadness but necessary
 		browser.tabs.executeScript(this.id,{
-			code: 
-				`(function(){
-					var state = ${!state};
-					var host = document.location.host.toString();
-					var specialCases = ["soundcloud.com","soundclick.com"];
-					var service = "SB_default";
-					for (var test of specialCases){
-						if (host.indexOf(test) != -1){
-							service = test;
-							break;
-						}
-					}
-					var media;
-					switch(service){
-						case "soundcloud.com":
-							if(host == "w.soundcloud.com"){
-								window.postMessage(JSON.stringify({method:"toggle"}),"https://"+host);
-								media = true;
-							}else{
-								media = document.getElementsByClassName("playControl")[0] || null;
-								media && media.tagName === "BUTTON" && media.click();
-							}
-							break;
-						case "soundclick.com":
-							media = document.querySelector(".hap-playback-toggle") || null;
-							media && media.click();
-							break;
-						case "SB_default":
-							media = document.getElementsByTagName("video")[0]
-									|| document.getElementsByTagName("audio")[0]
-									|| null;
-							media && media${func}
-							break;
-						default:
-							return 0;
-					}
-					browser.runtime.sendMessage({ elem:!!media,state:state })
-				})()`,
+			file:"toggle_playback.js",
 			allFrames:true
+		}).then((results)=>{
+			for(let result of results){
+				if (result.changed){
+					this.set("paused", !this.isPaused());
+					break;
+				}
+			}
 		});
 	};
 	SBtab.prototype.set = function(property,value){
@@ -104,9 +71,8 @@ const soundman = new function(){
 	SBtab.prototype.isAudible = function(){return this.status.audible};
 	SBtab.prototype.isPaused = function(){return this.status.paused};
 	SBtab.prototype.isRemovable = function(){return !(this.status.paused || this.status.audible || this.status.muted || this.status.pinned)};
-	// getTabs is used for hotkey commands
-	this.getTabs = () => { return SBtabs.tabs };
-	// Current options
+	
+	// Holds options
 	const options = {
 		undefinedKey:"switch",
 		CtrlKey:"playback",
@@ -156,9 +122,9 @@ const soundman = new function(){
 			let tabNames = Object.getOwnPropertyNames(SBtabs.tabs);
 			let first = true;
 			for (let tabId of tabNames){
-				let aTab = SBtabs.get(tabId);
-				if(!(tabInfo.id === +tabId) && !aTab.isMuted()){
-					aTab.toggleMute();
+				let SBtab = SBtabs.get(tabId);
+				if(!(tabInfo.id === +tabId) && !SBtab.isMuted()){
+					SBtab.toggleMute();
 					if (first){
 						SBtabs.autoUnmuteId = +tabId;
 						first = false;
@@ -166,7 +132,7 @@ const soundman = new function(){
 				}
 			}
 		}
-	}
+	};
 	
 	// Validate and map click modifiers
 	const setOptions = (opt) => {
@@ -213,12 +179,13 @@ const soundman = new function(){
 	// This doesn't fire when active tab changes
 	const determineAction = (tabId, changeInfo, tabInfo) => {
 		if(changeInfo.audible === undefined && changeInfo.mutedInfo === undefined){
-				return 0
+				console.log("This should never happen on Firefox 61+")
+				return
 		}
 		else{
 			handleUpdated(tabId,changeInfo);
 		}
-		return 0
+		return 
 	};
 	
 	const isExternallyMuted = (mutedInfo) => (mutedInfo && (mutedInfo.extensionId != browser.runtime.id));
@@ -226,14 +193,13 @@ const soundman = new function(){
 	// Handle changes to tabs
 	const handleUpdated = (tabId,changeInfo) => {
 		
-		let tab = SBtabs.get(tabId);
-		//console.log(changeInfo);
+		let SBtab = SBtabs.get(tabId);
 		// Ignore cases where a tab was muted by action other than this extension
-		if(!tab){
+		if(!SBtab){
 			if(isExternallyMuted(changeInfo.mutedInfo)){
 				return
 			}else{
-				tab = SBtabs.create(tabId,true);
+				SBtab = SBtabs.create(tabId,true);
 			}
 		}
 		
@@ -245,16 +211,18 @@ const soundman = new function(){
 		* unregistered because tab is no longer paused or muted or audible
 		*/
 
-		tab.set("audible",changeInfo.audible);
-		if(tab.isAudible() && tab.isPaused()){
-			tab.set("paused",false);
+		SBtab.set("audible",changeInfo.audible);
+		if(SBtab.isAudible() && SBtab.isPaused()){
+			SBtab.set("paused",false);
 		}
 		if (changeInfo.mutedInfo){
-			tab.set("muted",changeInfo.mutedInfo.muted);
+			SBtab.set("muted",changeInfo.mutedInfo.muted);
 			// Also sync audible state now
-			tab.set("audible",!tab.isMuted())
+			SBtab.set("audible",!SBtab.isMuted())
 		}
-		if(tab.isRemovable() && SBtabs.prevTab.fromTab != tabId/*!tab.isMuted() && !tab.isPaused() && !tab.isAudible() && !tab.isPinned()*/){
+		// Don't remove the tab yet if it's used by switch-to-tab
+		// Will be removed when the active tab changes
+		if(SBtab.isRemovable() && SBtabs.prevTab.fromTab != tabId){
 			handleRemoved(tabId,false);
 		}
 	};
@@ -286,22 +254,22 @@ const soundman = new function(){
 	
 	// Pin tab
 	const handlePinned = (tabId) => {
-		let tab = SBtabs.get(tabId);
-		if(tab && tab.isPinned()){
+		let SBtab = SBtabs.get(tabId);
+		if(SBtab && SBtab.isPinned()){
 			unpin(tabId);
 		}else{
-			if(!tab){
-			tab = SBtabs.create(tabId);
+			if(!SBtab){
+				SBtab = SBtabs.create(tabId);
 			}
-			tab.set("pinned",true);
+			SBtab.set("pinned",true);
 		}
 	};
 	
 	// Unpin tab
 	const unpin = (tabId) => {
-		let tab = SBtabs.get(tabId);
-		tab.set("pinned",false);
-		if(!tab.isMuted() && !tab.isPaused() && !tab.isAudible()){
+		let SBtab = SBtabs.get(tabId);
+		SBtab.set("pinned",false);
+		if(!SBtab.isMuted() && !SBtab.isPaused() && !SBtab.isAudible()){
 			handleRemoved(tabId,true);
 		}
 	};
@@ -358,32 +326,30 @@ const soundman = new function(){
 
 	// Select which action to take on message
 	const handleMessage = (request,sender,sendResponse) => {
-		// Don't care about other senders
-		if(sender.id != "soundman@example.com"){
-			return
-		}
-		// Feedback from tab content
-		if(sender.envType === "content_child"){
-		
-			let tab = SBtabs.get(sender.tab.id);
-			if (tab && (tab.isPaused() != request.state)){
-				tab.set("paused",!!(request.elem ^ tab.isPaused()));
-			}
-		}else{
-			// update options based on message from options document
-			setOptions(request.SBOptions);
-		}
+		// update options based on message from options document
+		(sender.id === "soundman@example.com") &&	setOptions(request.SBOptions);
+		return
 	};
+	
+	// Select which tabId should switch to
+	// newId == id of the tab that registered the menuitem
+	// curId == id of currently selected tab
+	
+	const getSwitchTabId = (newId,curId,curTitle) => {
+		let id = (newId != curId) ? newId : null;
+		// Store the previous tab info if we changed to a tab using Soundman
+		if (id != null){
+			SBtabs.prevTab.id = curId;
+			SBtabs.prevTab.title = curTitle;
+			SBtabs.prevTab.fromTab = newId;
+		}
+		return id
+	}
 	
 	// Set options on startup
 	browser.storage.local.get(["menuOptions","automute"]).then((options) => {setOptions(options)});
-	// Listen to tab changes
-	// Firefox 61 supports filtering onUpdated	
-	browser.tabs.onUpdated.addListener(determineAction,{properties:["audible","mutedInfo"]});
 	
-	// Remove the tab from soundman if the tab was closed
-	browser.tabs.onRemoved.addListener(handleRemoved);
-	// Create delete menu
+		// Create delete menu
 	browser.menus.create({
 		id: "SoundmanDelete",
 		title: "Remove from Soundman",
@@ -398,24 +364,17 @@ const soundman = new function(){
 		contexts: ["tab"],
 		icons: {"16":"Soundman16.png"},
 	});
-	// Select which tabId should switch to
-	// newId == id of the tab that registered the menuitem
-	// curId == id of currently selected tab
 	
-	const getSwitchTabId = (newId,curId,curTitle) => {
-		let retval;
-		// Store the previous tab info if we changed to a tab using Soundman
-		if (newId != curId){
-			retval = newId;
-			SBtabs.prevTab.id = curId;
-			SBtabs.prevTab.title = curTitle;
-			SBtabs.prevTab.fromTab = newId;
-		}else{
-			// return null in case we are in the tab of this menu already
-			retval = null;
-		}
-		return retval
-	}
+	
+	// Register Event Listeners
+	
+	// Listen to tab changes
+	// Firefox 61 supports filtering onUpdated	
+	browser.tabs.onUpdated.addListener(determineAction,{properties:["audible","mutedInfo"]});
+	
+	// Remove the tab from soundman if the tab was closed
+	browser.tabs.onRemoved.addListener(handleRemoved);
+
 	// Update menus when shown
 	browser.menus.onShown.addListener(selectMenuUpdate);
 	// Listen to feedback from content and options
@@ -439,7 +398,8 @@ const soundman = new function(){
 					break;
 				case "switch":
 					tabId = getSwitchTabId(tabId,tab.id,tab.title);
-					if (tabId){
+					// tabId may be 0 (?) thus the check for null
+					if (tabId != null){
 						browser.tabs.update(tabId,{ active: true });
 						// activate listener if we used menu to change tab
 						// it clears prevTab info on changing tab and deactivates itself
@@ -454,6 +414,7 @@ const soundman = new function(){
 		}
 		return
 	});
+	
 	// Hotkey handling
 	const getHotkeyTarget = (property) => {
 		let tabIds = Object.keys(soundman.getTabs());
@@ -467,10 +428,10 @@ const soundman = new function(){
 		}
 		if(selected === null){
 			for(let id of tabIds){
-				let aTab = SBtabs.get(id);
-				if((!selected && aTab.isAudible()) || (aTab.isPinned() && aTab.isAudible())){
+				let SBtab = SBtabs.get(id);
+				if((!selected && SBtab.isAudible()) || (SBtab.isPinned() && SBtab.isAudible())){
 					selected = +id;
-					if(aTab.isPinned()){
+					if(SBtab.isPinned()){
 						break;
 					}
 				}

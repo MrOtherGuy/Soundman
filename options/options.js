@@ -72,7 +72,7 @@ function notifyBackground(output){
 		SBOptions: output
 	});
 }
-
+// Background page doesn't need to be notified about hotkey changes
 function updateHotkeys(){
 	return (
 	updateHotkey("smhk_muteUnmute",document.querySelector("#Mute_HKSelection"))
