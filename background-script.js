@@ -49,13 +49,14 @@ const soundman = new function(){
 	// SBtab methods
 	SBtab.prototype.toggleMute = function(){browser.tabs.update(this.id,{muted:!this.status.muted})};
 	SBtab.prototype.togglePlayback = function(){
+		let newState = !this.isPaused();
 		browser.tabs.executeScript(this.id,{
 			file:"toggle_playback.js",
 			allFrames:true
 		}).then((results)=>{
 			for(let result of results){
 				if (result.changed){
-					this.set("paused", !this.isPaused());
+					this.set("paused", newState);
 					break;
 				}
 			}
@@ -63,6 +64,7 @@ const soundman = new function(){
 	};
 	SBtab.prototype.set = function(property,value){
 		if (this.status.hasOwnProperty(property) && (value === true || value === false)){
+		//	console.log("setting " + property + " to " + value);
 			this.status[property] = value;
 		}
 	};
@@ -323,13 +325,6 @@ const soundman = new function(){
 	const getMenuAction = (mods) => {
 		return options[mods[0]+"Key"]
 	};
-
-	// Select which action to take on message
-	const handleMessage = (request,sender,sendResponse) => {
-		// update options based on message from options document
-		(sender.id === "soundman@example.com") &&	setOptions(request.SBOptions);
-		return
-	};
 	
 	// Select which tabId should switch to
 	// newId == id of the tab that registered the menuitem
@@ -345,6 +340,28 @@ const soundman = new function(){
 		}
 		return id
 	}
+	
+		// Select which action to take on message
+	const handleMessage = (request,sender,sendResponse) => {
+		if(sender.id != browser.runtime.id){
+			return
+		}
+		switch(sender.envType){
+			// From content asking for tab status
+			case "content_child":
+				(request.message === "isPaused") && sendResponse({paused:SBtabs.get(sender.tab.id).isPaused()});
+				break;
+			case "addon_child":
+				setOptions(request.SBOptions);
+				break;
+			default:
+				console.log("unhandled message from:" + sender.envType);
+		}
+		// update options based on message from options document
+		//(sender.id === "soundman@example.com") &&	setOptions(request.SBOptions);
+		return
+	};
+	
 	
 	// Set options on startup
 	browser.storage.local.get(["menuOptions","automute"]).then((options) => {setOptions(options)});

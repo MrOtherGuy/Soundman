@@ -1,45 +1,56 @@
 (async function(){
-	var host = document.location.host.toString();
-	var specialCases = ["soundcloud.com","soundclick.com"];
-	var service = "SB_default";
-	for (var test of specialCases){
+	let status = await browser.runtime.sendMessage({message:"isPaused"});
+	if(!status){
+		return {changed:false}
+	}
+	//console.log(status.isPaused);
+	let method = status.paused ? "play" : "pause";
+	let host = document.location.host.toString();
+	let specialCases = ["soundcloud.com","soundclick.com"];
+	let service = "SB_default";
+	for (let test of specialCases){
 		if (host.indexOf(test) != -1){
 			service = test;
 			break;
 		}
 	}
-	var media;
-	var changed = false;
+	let media;
+	let changed = false;
 	switch(service){
 		case "soundcloud.com":
 			if(host == "w.soundcloud.com"){
-				window.postMessage(JSON.stringify({method:"toggle"}),"https://"+host);
+				window.postMessage(JSON.stringify({"method": method}),"https://"+host);
 				changed = true;
 			}else{
-				media = document.getElementsByClassName("playControl")[0] || null;
+				media = document.querySelector(".playControls__play" + (status.paused ? ":not(.playing)" : ".playing")) || null;
 				media && media.tagName === "BUTTON" && media.click();
-					changed = true;
+				changed = true;
 			}
 			break;
 		case "soundclick.com":
-			media = document.querySelector(".hap-playback-toggle") || null;
-			media && media.click();
-			changed = true;
+			media = document.querySelector(".hap-playback-toggle>.fa-" + method) || null;
+			if(media){
+				media.click();
+				changed = true;
+			}
 			break;
 		case "SB_default":
 			media = document.getElementsByTagName("video")[0]
 						|| document.getElementsByTagName("audio")[0]
 						|| null;
 			if(media){
-				try{
-					changed = !(media.paused ? await media.play() : await media.pause());
-				}catch(e){
-					changed = false;
+				if(!media.ended && media.currentTime > 0){
+					try{
+						changed = !(status.paused ? await media.play() : await media.pause());
+					}catch(e){
+						changed = false;
+					}
+					changed = changed ? (status.paused != media.paused) : false;
 				}
 			}
 			break;
 		default:
-			console.log(service);
+			console.log("unexpected service: " + service);
 	}
 	return {changed:changed}
 })()
