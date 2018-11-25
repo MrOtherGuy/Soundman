@@ -23,8 +23,10 @@
 				changed = true;
 			}else{
 				media = document.querySelector(".playControls__play" + (status.paused ? ":not(.playing)" : ".playing")) || null;
-				media && media.tagName === "BUTTON" && media.click();
-				changed = true;
+				if (media){
+					media.click();
+					changed = true;
+				}
 			}
 			break;
 		case "soundclick.com":
@@ -39,18 +41,18 @@
 						|| document.getElementsByTagName("audio")[0]
 						|| null;
 			if(media){
-				if(!media.ended && media.currentTime > 0){
+				if(media.paused === status.paused && !media.ended && media.currentTime > 0){
 					try{
-						changed = !(status.paused ? await media.play() : await media.pause());
+						changed = !(status.paused ? await media.play() : media.pause());
 					}catch(e){
 						changed = false;
 					}
-					changed = changed ? (status.paused != media.paused) : false;
 				}
 			}
 			break;
 		default:
 			console.log("unexpected service: " + service);
 	}
-	return {changed:changed}
+
+	return {changed:changed,url:document.location.href}
 })()

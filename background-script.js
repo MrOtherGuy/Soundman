@@ -36,30 +36,43 @@ const soundman = new function(){
 	this.getTabs = () => { return SBtabs.tabs };
 	
 	// SBtab holds the state of a single tab
-	function SBtab(id,audible){
+	function SBtab(id,props){
 		this.id = id;
 		this.status = {
-			audible: audible,
+			audible: props.audible || false,
 			muted: false,
-			pinned: false,
-			paused: false
+			pinned: props.pinned || false,
+			paused: props.paused || false,
 		};
+		this.frame = { id: null };
 		return Object.freeze(this)
 	};
 	// SBtab methods
 	SBtab.prototype.toggleMute = function(){browser.tabs.update(this.id,{muted:!this.status.muted})};
-	SBtab.prototype.togglePlayback = function(){
+	SBtab.prototype.togglePlayback = function(forceAllFrames){
+		let file = "toggle_playback.js";
 		let newState = !this.isPaused();
-		browser.tabs.executeScript(this.id,{
-			file:"toggle_playback.js",
-			allFrames:true
-		}).then((results)=>{
+		let details;
+		// allFrames is forced when the specified frame doesn't exist anymore
+		if(forceAllFrames || newState){
+			details = { file: file, allFrames: true };
+		}else{
+			details = { file: file, frameId: this.frame.id };
+		}
+		browser.tabs.executeScript(this.id, details).then(async (results)=>{
 			for(let result of results){
 				if (result.changed){
 					this.set("paused", newState);
+					this.frame.id = !newState ? null : results.length === 1 ? 0 : await getFrameId(this.id,result.url);
 					break;
 				}
 			}
+		},(e)=>{
+			// Handle the case where a frame doesn't exist anymore
+		console.log("Frame has been removed, proceed to toggle all frames");
+		if(!(forceAllFrames || newState)){
+			window.setTimeout(()=>(this.togglePlayback(true)),20);
+		}
 		});
 	};
 	SBtab.prototype.set = function(property,value){
@@ -73,6 +86,11 @@ const soundman = new function(){
 	SBtab.prototype.isAudible = function(){return this.status.audible};
 	SBtab.prototype.isPaused = function(){return this.status.paused};
 	SBtab.prototype.isRemovable = function(){return !(this.status.paused || this.status.audible || this.status.muted || this.status.pinned)};
+	 
+	const getFrameId = async function(tabId,url){
+		let frames = await browser.webNavigation.getAllFrames({tabId:tabId});
+		return frames.filter((frame)=>(url === frame.url))[0].frameId || null;
+	};
 	
 	// Holds options
 	const options = {
@@ -99,11 +117,11 @@ const soundman = new function(){
 		
 		this.get = (id) => { return (this.tabs[id] || null) };
 		
-		this.create = (id,audible) => {
+		this.create = (id,props) => {
 			if (this.get(id) === null){
 				/* Mute old tabs */
-				options.automute && browser.tabs.get(id).then(muteOtherTabs);				
-				this.tabs[id] = new SBtab(id,!!audible);
+				options.automute && !props.pinned && browser.tabs.get(id).then(muteOtherTabs);
+				this.tabs[id] = new SBtab(id,props);
 				createMenu(id);
 			}
 			return this.get(id)
@@ -201,7 +219,7 @@ const soundman = new function(){
 			if(isExternallyMuted(changeInfo.mutedInfo)){
 				return
 			}else{
-				SBtab = SBtabs.create(tabId,true);
+				SBtab = SBtabs.create(tabId,{audible:true});
 			}
 		}
 		
@@ -255,13 +273,14 @@ const soundman = new function(){
 	};
 	
 	// Pin tab
-	const handlePinned = (tabId) => {
+	const handlePinned = (tabId,audible,mutedInfo) => {
 		let SBtab = SBtabs.get(tabId);
+		let shouldBePaused = (!audible && !mutedInfo.muted); 
 		if(SBtab && SBtab.isPinned()){
 			unpin(tabId);
 		}else{
 			if(!SBtab){
-				SBtab = SBtabs.create(tabId);
+				SBtab = SBtabs.create(tabId,{pinned:true,audible:audible,paused:shouldBePaused});
 			}
 			SBtab.set("pinned",true);
 		}
@@ -351,14 +370,13 @@ const soundman = new function(){
 			case "content_child":
 				(request.message === "isPaused") && sendResponse({paused:SBtabs.get(sender.tab.id).isPaused()});
 				break;
+			// update options based on message from options document
 			case "addon_child":
 				setOptions(request.SBOptions);
 				break;
 			default:
 				console.log("unhandled message from:" + sender.envType);
 		}
-		// update options based on message from options document
-		//(sender.id === "soundman@example.com") &&	setOptions(request.SBOptions);
 		return
 	};
 	
@@ -402,7 +420,7 @@ const soundman = new function(){
 		if(menus.menuItemId === "SoundmanDelete"){
 			handleRemoved(tab.id,true);
 		}else if(menus.menuItemId === "SoundmanPin"){
-			handlePinned(tab.id,tab.audible);
+			handlePinned(tab.id,tab.audible,tab.mutedInfo);
 		}else{
 			let tabId = +(menus.menuItemId.split("-")[1]);
 			let method = getMenuAction(menus.modifiers);

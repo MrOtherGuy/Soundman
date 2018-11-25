@@ -3,7 +3,7 @@
 	"author": "MrOtherGuy",
   "manifest_version": 2,
   "name": "Soundman",
-  "permissions": ["tabs","<all_urls>","menus","storage"],
+  "permissions": ["tabs","<all_urls>","menus","storage","webNavigation"],
   "version": "0.1.6",
 	"background": {
 		"scripts": ["background-script.js"]
