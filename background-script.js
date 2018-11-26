@@ -37,33 +37,31 @@ const soundman = new function(){
 	
 	// SBtab holds the state of a single tab
 	function SBtab(id,props){
-		this.id = id;
-		this.status = {
-			audible: props.audible || false,
-			muted: false,
-			pinned: props.pinned || false,
-			paused: props.paused || false,
-		};
-		this.frame = { id: null };
-		return Object.freeze(this)
+		Object.defineProperty(this,"id",{value:id});
+		this.audible = props.audible || false;
+		this.muted = props.muted || false;
+		this.pinned = props.pinned || false;
+		this.paused = props.paused || false;
+		this.frameId = null;
+		return Object.seal(this)
 	};
 	// SBtab methods
-	SBtab.prototype.toggleMute = function(){browser.tabs.update(this.id,{muted:!this.status.muted})};
+	SBtab.prototype.toggleMute = function(){browser.tabs.update(this.id,{muted:!this.muted})};
 	SBtab.prototype.togglePlayback = function(forceAllFrames){
 		let file = "toggle_playback.js";
-		let newState = !this.isPaused();
+		let newState = !this.paused;
 		let details;
 		// allFrames is forced when the specified frame doesn't exist anymore
 		if(forceAllFrames || newState){
 			details = { file: file, allFrames: true };
 		}else{
-			details = { file: file, frameId: this.frame.id };
+			details = { file: file, frameId: this.frameId };
 		}
 		browser.tabs.executeScript(this.id, details).then(async (results)=>{
 			for(let result of results){
 				if (result.changed){
 					this.set("paused", newState);
-					this.frame.id = !newState ? null : results.length === 1 ? 0 : await getFrameId(this.id,result.url);
+					this.frameId = !newState ? null : results.length === 1 ? 0 : await getFrameId(this.id,result.url);
 					break;
 				}
 			}
@@ -76,16 +74,13 @@ const soundman = new function(){
 		});
 	};
 	SBtab.prototype.set = function(property,value){
-		if (this.status.hasOwnProperty(property) && (value === true || value === false)){
+		if (this.hasOwnProperty(property) && (value === true || value === false)){
 		//	console.log("setting " + property + " to " + value);
-			this.status[property] = value;
+			this[property] = value;
 		}
 	};
-	SBtab.prototype.isMuted = function(){return this.status.muted};
-	SBtab.prototype.isPinned = function(){return this.status.pinned};
-	SBtab.prototype.isAudible = function(){return this.status.audible};
-	SBtab.prototype.isPaused = function(){return this.status.paused};
-	SBtab.prototype.isRemovable = function(){return !(this.status.paused || this.status.audible || this.status.muted || this.status.pinned)};
+
+	SBtab.prototype.isRemovable = function(){return !(this.paused || this.audible || this.muted || this.pinned)};
 	 
 	const getFrameId = async function(tabId,url){
 		let frames = await browser.webNavigation.getAllFrames({tabId:tabId});
@@ -143,7 +138,7 @@ const soundman = new function(){
 			let first = true;
 			for (let tabId of tabNames){
 				let SBtab = SBtabs.get(tabId);
-				if(!(tabInfo.id === +tabId) && !SBtab.isMuted()){
+				if(!(tabInfo.id === +tabId) && !SBtab.muted && SBtab.audible){
 					SBtab.toggleMute();
 					if (first){
 						SBtabs.autoUnmuteId = +tabId;
@@ -188,7 +183,8 @@ const soundman = new function(){
 	// This is only listening when we change tab from within context menu
 	// If the user changes a tab himself we want to clear the previous tab store
 	const handleActiveChanged = (tabInfo) => {
-		if(SBtabs.get(SBtabs.prevTab.fromTab).isRemovable()){
+		let SBtab = SBtabs.get(SBtabs.prevTab.fromTab);
+		if(!SBtab || SBtab.isRemovable()){
 			handleRemoved(SBtabs.prevTab.fromTab,false);
 		}
 		SBtabs.prevTab.clear();
@@ -232,13 +228,13 @@ const soundman = new function(){
 		*/
 
 		SBtab.set("audible",changeInfo.audible);
-		if(SBtab.isAudible() && SBtab.isPaused()){
+		if(SBtab.audible && SBtab.paused){
 			SBtab.set("paused",false);
 		}
 		if (changeInfo.mutedInfo){
 			SBtab.set("muted",changeInfo.mutedInfo.muted);
 			// Also sync audible state now
-			SBtab.set("audible",!SBtab.isMuted())
+			SBtab.set("audible",!SBtab.muted)
 		}
 		// Don't remove the tab yet if it's used by switch-to-tab
 		// Will be removed when the active tab changes
@@ -268,15 +264,15 @@ const soundman = new function(){
 		}
 		if(SBtabs.get(tabId)){
 			SBtabs.remove(tabId,fromSelf);
-			removeMenu(tabId);
 		}
+		removeMenu(tabId);
 	};
 	
 	// Pin tab
 	const handlePinned = (tabId,audible,mutedInfo) => {
 		let SBtab = SBtabs.get(tabId);
 		let shouldBePaused = (!audible && !mutedInfo.muted); 
-		if(SBtab && SBtab.isPinned()){
+		if(SBtab && SBtab.pinned){
 			unpin(tabId);
 		}else{
 			if(!SBtab){
@@ -290,7 +286,7 @@ const soundman = new function(){
 	const unpin = (tabId) => {
 		let SBtab = SBtabs.get(tabId);
 		SBtab.set("pinned",false);
-		if(!SBtab.isMuted() && !SBtab.isPaused() && !SBtab.isAudible()){
+		if(SBtab.isRemovable()){
 			handleRemoved(tabId,true);
 		}
 	};
@@ -301,7 +297,7 @@ const soundman = new function(){
 			let SBtab = SBtabs.get(tab.id);
 			if(SBtab){
 				browser.menus.update("SoundmanDelete",{enabled:true});
-				SBtab.isPinned() && browser.menus.update("SoundmanPin",{title:"Unpin from Soundman"});
+				SBtab.pinned && browser.menus.update("SoundmanPin",{title:"Unpin from Soundman"});
 				browser.menus.refresh();
 				browser.menus.update("SoundmanDelete",{enabled:false});
 				browser.menus.update("SoundmanPin",{title:"Pin to Soundman"});
@@ -329,7 +325,7 @@ const soundman = new function(){
 					title = "🔁 " + SBtabs.prevTab.title;
 				}else{
 					let SBtab = SBtabs.get(tab.id);
-					title = ["","📌"][+SBtab.isPinned()] + ["🔊","🔇"][+SBtab.isMuted()] + ["▶️ ","⏸ "][+SBtab.isPaused()] + tab.title;
+					title = ["","📌"][+SBtab.pinned] + ["🔊","🔇"][+SBtab.muted] + ["▶️ ","⏸ "][+SBtab.paused] + tab.title;
 				}
 				browser.menus.update("Soundman-"+tab.id,{
 				title: title,
@@ -368,7 +364,7 @@ const soundman = new function(){
 		switch(sender.envType){
 			// From content asking for tab status
 			case "content_child":
-				(request.message === "isPaused") && sendResponse({paused:SBtabs.get(sender.tab.id).isPaused()});
+				(request.message === "isPaused") && sendResponse({paused:SBtabs.get(sender.tab.id).paused});
 				break;
 			// update options based on message from options document
 			case "addon_child":
@@ -456,7 +452,7 @@ const soundman = new function(){
 		let selected = null;
 	// If a site is muted then it won't be paused by hotkey
 		for(let id of tabIds){
-			if(SBtabs.get(id).status[property]){
+			if(SBtabs.get(id)[property]){
 				selected = +id;
 				break;
 			}
@@ -464,9 +460,9 @@ const soundman = new function(){
 		if(selected === null){
 			for(let id of tabIds){
 				let SBtab = SBtabs.get(id);
-				if((!selected && SBtab.isAudible()) || (SBtab.isPinned() && SBtab.isAudible())){
+				if((!selected && SBtab.audible) || (SBtab.pinned && SBtab.audible)){
 					selected = +id;
-					if(SBtab.isPinned()){
+					if(SBtab.pinned){
 						break;
 					}
 				}

@@ -30,12 +30,11 @@ function saveOptions(e) {
 		){
 		
 		message.modifiers += "OK";
-		//	feedback(false,"OK");
-		//	updateHotkeys();
+
 	}else{
 		message.valid = false;
 		message.modifiers += "Two action have same modifier";
-	//	feedback(true,(diff ? "" : "Two action have same modifier"));
+	
 	}
 	message.valid = updateHotkeys();
 	message.hotkeys += (message.valid ? "OK" : "Invalid");

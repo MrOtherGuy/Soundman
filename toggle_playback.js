@@ -3,7 +3,7 @@
 	if(!status){
 		return {changed:false}
 	}
-	//console.log(status.isPaused);
+
 	let method = status.paused ? "play" : "pause";
 	let host = document.location.host.toString();
 	let specialCases = ["soundcloud.com","soundclick.com"];
