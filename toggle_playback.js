@@ -54,5 +54,5 @@
 			console.log("unexpected service: " + service);
 	}
 
-	return {changed:changed,url:document.location.href}
+	return {changed:changed, frameId:status.frameId}
 })()

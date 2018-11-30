@@ -61,7 +61,7 @@ const soundman = new function(){
 			for(let result of results){
 				if (result.changed){
 					this.set("paused", newState);
-					this.frameId = !newState ? null : results.length === 1 ? 0 : await getFrameId(this.id,result.url);
+					this.frameId = !newState ? null : results.length === 1 ? 0 : result.frameId;
 					break;
 				}
 			}
@@ -81,11 +81,6 @@ const soundman = new function(){
 	};
 
 	SBtab.prototype.isRemovable = function(){return !(this.paused || this.audible || this.muted || this.pinned)};
-	 
-	const getFrameId = async function(tabId,url){
-		let frames = await browser.webNavigation.getAllFrames({tabId:tabId});
-		return frames.filter((frame)=>(url === frame.url))[0].frameId || null;
-	};
 	
 	// Holds options
 	const options = {
@@ -364,7 +359,7 @@ const soundman = new function(){
 		switch(sender.envType){
 			// From content asking for tab status
 			case "content_child":
-				(request.message === "isPaused") && sendResponse({paused:SBtabs.get(sender.tab.id).paused});
+				(request.message === "isPaused") && sendResponse({paused:SBtabs.get(sender.tab.id).paused, frameId:sender.frameId});
 				break;
 			// update options based on message from options document
 			case "addon_child":
